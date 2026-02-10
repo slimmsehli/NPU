@@ -3,3 +3,4 @@ run.csh
 simdir
 synopsys_sim.setup
 ucli.tcl
+venv
