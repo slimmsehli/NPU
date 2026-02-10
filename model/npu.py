@@ -9,6 +9,7 @@ class NPUConfig:
         self.data_width = data_width  # Bit width (e.g., 8-bit integer)
         self.mem_depth = mem_depth    # Number of addresses in unified memory
         self.max_val = (2**data_width) - 1
+        self.layer = "1"
 
 class Memory:
     """
@@ -154,8 +155,9 @@ class Controller:
             f.write(hex_str + "\n")
         print(f"[Debug] Dumped {filename}")
 
-    def execute_program(self, program):
+    def execute_program(self, program, layer_num):
         print("\n--- Starting NPU Execution ---")
+        self.config.layer = layer_num
         for pc, instr in enumerate(program):
             opcode = instr['op']
             print(f"PC[{pc}]: {opcode}")
@@ -180,7 +182,7 @@ class Controller:
                 raw_output = self.array.run_matmul(inputs)
                 
                 # --- DUMP 1: Raw Output (Before Activation) ---
-                self._write_debug_hex("./hex/result_multiplication.hex", raw_output)
+                self._write_debug_hex(f"./hex/result_multiplication_layer_{self.config.layer}.hex", raw_output)
                 
                 # 3. Run PPU (returns both Activated and Final)
                 activated_output, final_output = self.ppu.process(
@@ -188,10 +190,10 @@ class Controller:
                 )
                 
                 # --- DUMP 2: Activated Output (Before Quantization) ---
-                self._write_debug_hex("./hex/result_activated.hex", activated_output)
+                self._write_debug_hex(f"./hex/result_activated_layer_{self.config.layer}.hex", activated_output)
                 
                 # --- DUMP 3: Final Output (Quantized) ---
-                self._write_debug_hex("./hex/result_final.hex", final_output)
+                self._write_debug_hex(f"./hex/result_final_layer_{self.config.layer}.hex", final_output)
                 
                 # 4. Write Back Final Result to Memory
                 self.memory.write_block(dst_addr, final_output)

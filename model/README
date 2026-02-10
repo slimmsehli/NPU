@@ -1,6 +1,8 @@
 
 
 npu.py : this the main model for the NPU that perform one layer of multiplication followed by quantization and activation layers 
+npu_wrapper : npu top with multi layer setup
 testbench.py : this is the testbench for the NPU mode
-show.py : this is a plot script to plot the input matrix, the input weights and the output matrix before activation, before quantization and the output
+show_all.py : this is a plot script to plot the input matrix, the input weights and the output matrix before activation, before quantization and the output
+testbench_npu_wrapper.py : the top npu with multilayer 
 

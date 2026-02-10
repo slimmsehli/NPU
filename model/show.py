@@ -93,7 +93,7 @@ def plot_full_pipeline(weights, inputs, raw, activated, final):
 
 # --- Main Execution ---
 if __name__ == "__main__":
-    array_size = 4
+    array_size = 8
     # 1. Load the 5 matrices
     # Ensure these filenames match what your NPU script generates!
     w_mat = load_matrix_from_hex('./hex/weights.hex', array_size, array_size)
