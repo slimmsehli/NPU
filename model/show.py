@@ -1,69 +1,90 @@
 import numpy as np
-import matplotlib
-matplotlib.use('TkAgg') # <--- Add this line
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+
+# Use TkAgg if on a windowed system, otherwise it might fail on some setups
+try:
+    import matplotlib
+    matplotlib.use('TkAgg') 
+except:
+    pass
 
 def load_matrix_from_hex(filename, rows=4, cols=4):
     """
     Parses a hex file into a numpy matrix.
-    Assumes the file contains hex strings (e.g., '1A', '0xFF') separated by whitespace or newlines.
+    Handles both 8-bit (2 chars) and 32-bit (8 chars) hex values.
     """
     try:
         with open(filename, 'r') as f:
             content = f.read()
-            # Split by whitespace and filter out empty strings
-            hex_values = content.split()
+            # Split by whitespace
+            tokens = content.split()
             
             # Convert hex strings to integers
-            # Handling both '0xFF' and 'FF' formats
-            int_values = [int(x, 16) for x in hex_values]
+            int_values = []
+            for t in tokens:
+                try:
+                    int_values.append(int(t, 16))
+                except ValueError:
+                    continue # Skip non-hex tokens
             
-            # Check if we have enough data
+            # Pad with zeros if not enough data
             if len(int_values) < rows * cols:
-                print(f"Warning: Not enough data in {filename}. Expected {rows*cols}, got {len(int_values)}.")
-                # Pad with zeros if necessary
+                print(f"Warning: {filename} has {len(int_values)} values, expected {rows*cols}. Padding with 0.")
                 int_values += [0] * (rows * cols - len(int_values))
             
-            # Truncate if too much data, then reshape
+            # Create matrix
             matrix = np.array(int_values[:rows*cols]).reshape(rows, cols)
             return matrix
             
     except FileNotFoundError:
-        print(f"Error: File {filename} not found.")
-        return np.zeros((rows, cols))
-    except ValueError as e:
-        print(f"Error parsing hex in {filename}: {e}")
+        print(f"Error: File {filename} not found. Returning zeros.")
         return np.zeros((rows, cols))
 
-def plot_matrices(weights, inputs, result):
+def plot_full_pipeline(weights, inputs, raw, activated, final):
     """
-    Plots the three matrices side-by-side.
+    Plots the 5 stages of the NPU pipeline.
     """
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    fig, axes = plt.subplots(1, 5, figsize=(20, 5))
     
-    matrices = [
-        (weights, 'Weights (4x4)', 'Blues'),
-        (inputs, 'Inputs (4x4)', 'Greens'),
-        (result, 'NPU Result (4x4)', 'Reds')
+    # Define the 5 plots
+    plots = [
+        (weights,   '1. Weights (8-bit)',   'Blues'),
+        (inputs,    '2. Inputs (8-bit)',    'Greens'),
+        (raw,       '3. Raw Accum (32-bit)', 'Oranges'), # Raw output can be huge
+        (activated, '4. Activated (ReLU)',  'Purples'), # No negatives
+        (final,     '5. Final Output (8-bit)','Reds')    # Quantized back to 0-255
     ]
     
-    for ax, (data, title, cmap) in zip(axes, matrices):
-        # Create heatmap
-        im = ax.imshow(data, cmap=cmap)
-        ax.set_title(title)
+    for ax, (data, title, cmap) in zip(axes, plots):
+        # Determine normalization for color scaling
+        # For 8-bit, we stick to 0-255. For 32-bit, we use min/max of the data.
+        if '32-bit' in title or 'Activated' in title:
+            norm = mcolors.Normalize(vmin=data.min(), vmax=data.max())
+        else:
+            norm = mcolors.Normalize(vmin=0, vmax=255)
+
+        im = ax.imshow(data, cmap=cmap, norm=norm)
+        ax.set_title(title, fontsize=10, fontweight='bold')
         
-        # Annotate each cell with the numeric value
+        # Annotate cells
         for i in range(data.shape[0]):
             for j in range(data.shape[1]):
-                # Choose text color based on background intensity for readability
-                text_color = "white" if data[i, j] > data.max()/2 else "black"
-                ax.text(j, i, str(data[i, j]), 
-                        ha="center", va="center", color=text_color, fontweight='bold')
+                val = data[i, j]
+                
+                # Dynamic text color (white if dark background, black if light)
+                # Calculate relative brightness of the cell
+                cell_intensity = (val - norm.vmin) / (norm.vmax - norm.vmin + 1e-5)
+                text_color = "white" if cell_intensity > 0.5 else "black"
+                
+                # For large numbers, use smaller font
+                font_size = 8 if val > 999 else 10
+                
+                ax.text(j, i, str(val), 
+                        ha="center", va="center", 
+                        color=text_color, fontweight='bold', fontsize=font_size)
         
-        # Add colorbar
-        plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-        
-        # Turn off tick labels for cleaner look
+        # Remove ticks
         ax.set_xticks([])
         ax.set_yticks([])
 
@@ -72,21 +93,20 @@ def plot_matrices(weights, inputs, result):
 
 # --- Main Execution ---
 if __name__ == "__main__":
-    # 1. create dummy files for demonstration (You can remove this block)
-    # This just ensures the code runs if you copy-paste it immediately.
-    with open("weights.hex", "w") as f: f.write("01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10")
-    with open("inputs.hex", "w") as f:  f.write("10 0F 0E 0D 0C 0B 0A 09 08 07 06 05 04 03 02 01")
-    with open("result.hex", "w") as f:  f.write("11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11")
+    array_size = 4
+    # 1. Load the 5 matrices
+    # Ensure these filenames match what your NPU script generates!
+    w_mat = load_matrix_from_hex('./hex/weights.hex', array_size, array_size)
+    i_mat = load_matrix_from_hex('./hex/inputs.hex', array_size, array_size)
+    
+    # Intermediate dumps (Make sure you enabled these in your Controller)
+    raw_mat = load_matrix_from_hex('./hex/result_multiplication.hex', array_size, array_size)
+    act_mat = load_matrix_from_hex('./hex/result_activated.hex', array_size, array_size)
+    fin_mat = load_matrix_from_hex('./hex/result_final.hex', array_size, array_size)
 
-    # 2. Load the data
-    # Replace these filenames with your actual .hex file paths
-    weights_matrix = load_matrix_from_hex('weights.hex')
-    inputs_matrix = load_matrix_from_hex('inputs.hex')
-    result_matrix = load_matrix_from_hex('result.hex')
+    # 2. Visualize
+    print("Visualizing NPU Pipeline...")
+    plot_full_pipeline(w_mat, i_mat, raw_mat, act_mat, fin_mat)
 
-    print("Weights:\n", weights_matrix)
-    print("Inputs:\n", inputs_matrix)
-    print("Result:\n", result_matrix)
 
-    # 3. Visualize
-    plot_matrices(weights_matrix, inputs_matrix, result_matrix)
+

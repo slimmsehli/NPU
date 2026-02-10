@@ -4,3 +4,5 @@ simdir
 synopsys_sim.setup
 ucli.tcl
 venv
+__pycache__
+model/__pycache__
