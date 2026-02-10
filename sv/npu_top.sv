@@ -1,5 +1,5 @@
 // ============================================================================
-// PROJECT: Tunisian NPU V0.1 (Sovereign AI)
+// PROJECT: NPU V0.1 (Sovereign AI)
 // DESCRIPTION: Scalable Systolic Array Template for INT8 Inference
 // ============================================================================
 /* verilator lint_off DECLFILENAME */
