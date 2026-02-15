@@ -1,0 +1,391 @@
+# NPU System - Complete Architecture Visualization
+
+## System Overview
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                          NPU COMPLETE SYSTEM                           │
+│                                                                        │
+│  External Input                                                        │
+│       ↓                                                                │
+│  ┌─────────────────────────────────────────────────────────────────┐  │
+│  │                     INPUT INTERFACE                             │  │
+│  │  • Input Data Buffer (3×3)                                      │  │
+│  │  • Weight Memory Interface                                      │  │
+│  │  • Configuration Registers                                      │  │
+│  └──────────────────────────────┬──────────────────────────────────┘  │
+│                                 ↓                                      │
+│  ┌─────────────────────────────────────────────────────────────────┐  │
+│  │              FSM CONTROLLER (Layer Manager)                     │  │
+│  │                                                                 │  │
+│  │  States:                                                        │  │
+│  │  IDLE → LOAD_WEIGHTS → START_MATMUL → WAIT_MATMUL →           │  │
+│  │  APPLY_BIAS → APPLY_ACTIVATION → STORE_RESULT →               │  │
+│  │  NEXT_LAYER → COMPLETE                                         │  │
+│  │                                                                 │  │
+│  │  Controls:                                                      │  │
+│  │  • Layer counter (current layer index)                         │  │
+│  │  • Cycle counter (timing control)                              │  │
+│  │  • Enable signals for compute engines                          │  │
+│  └────┬───────────────────────────────────────┬────────────────────┘  │
+│       │                                       │                        │
+│       ↓                                       ↓                        │
+│  ┌─────────────┐                     ┌─────────────────┐              │
+│  │   LAYER     │←────────────────────│  WEIGHT MEMORY  │              │
+│  │   BUFFER    │  Inter-layer data   │   INTERFACE     │              │
+│  │             │                     │                 │              │
+│  │ [9 × 32bit] │                     │  Per-layer      │              │
+│  │             │                     │  weights        │              │
+│  └─────┬───────┘                     └─────────────────┘              │
+│        │                                                               │
+│        ↓                                                               │
+│  ┌─────────────────────────────────────────────────────────────────┐  │
+│  │                    SYSTOLIC ARRAY 3×3                           │  │
+│  │                 (Matrix Multiplication Engine)                  │  │
+│  │                                                                 │  │
+│  │     North Inputs (3)                                           │  │
+│  │     ↓     ↓     ↓                                              │  │
+│  │   ┌────┐┌────┐┌────┐                                          │  │
+│  │ W │PE00││PE01││PE02│                                           │  │
+│  │ e └─┬──┘└─┬──┘└────┘                                           │  │
+│  │ s   ↓     ↓                                                    │  │
+│  │ t ┌────┐┌────┐┌────┐     Each PE:                             │  │
+│  │   │PE10││PE11││PE12│     • MAC: acc += A × B                  │  │
+│  │ I └─┬──┘└─┬──┘└────┘     • Data flow: N→S, W→E                │  │
+│  │ n   ↓     ↓                                                    │  │
+│  │ p ┌────┐┌────┐┌────┐                                          │  │
+│  │ u │PE20││PE21││PE22│                                           │  │
+│  │ t └────┘└────┘└────┘                                           │  │
+│  │ s                                                              │  │
+│  │ (3)                                                            │  │
+│  │                                                                 │  │
+│  │     Output: 9 accumulated values (32-bit each)                 │  │
+│  └────────────────────────────┬────────────────────────────────────┘  │
+│                               ↓                                       │
+│  ┌─────────────────────────────────────────────────────────────────┐  │
+│  │             VECTOR PROCESSING UNIT (VPU)                        │  │
+│  │                   (Post-Processing Engine)                      │  │
+│  │                                                                 │  │
+│  │  Operation Selection (3-bit code):                             │  │
+│  │  ┌─────────────┬──────────────────────────────────┐            │  │
+│  │  │   0x0       │  Passthrough                     │            │  │
+│  │  │   0x1       │  ReLU                            │            │  │
+│  │  │   0x2       │  Bias Addition                   │            │  │
+│  │  │   0x3       │  Scaling                         │            │  │
+│  │  │   0x4       │  Max Pooling (2×2)               │            │  │
+│  │  │   0x5       │  Average Pooling (2×2)           │            │  │
+│  │  │   0x6       │  Sigmoid Approximation           │            │  │
+│  │  │   0x7       │  Tanh Approximation              │            │  │
+│  │  └─────────────┴──────────────────────────────────┘            │  │
+│  │                                                                 │  │
+│  │  Inputs: 9 values from systolic array                          │  │
+│  │  Parameters: bias_value, scale_factor                          │  │
+│  │  Output: 9 processed values                                    │  │
+│  └────────────────────────────┬────────────────────────────────────┘  │
+│                               ↓                                       │
+│                          Back to Layer Buffer                         │
+│                      (for next layer processing)                      │
+│                               │                                       │
+│                         [If last layer]                               │
+│                               ↓                                       │
+│  ┌─────────────────────────────────────────────────────────────────┐  │
+│  │                      OUTPUT INTERFACE                           │  │
+│  │  • Final result (9 values)                                      │  │
+│  │  • Done signal                                                  │  │
+│  │  • Status outputs                                               │  │
+│  └─────────────────────────────────────────────────────────────────┘  │
+│                               ↓                                       │
+│                         External Output                               │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Data Flow Through Layers
+
+### Single Layer Processing
+
+```
+Cycle 0-1:   [LOAD_WEIGHTS]
+             • Load input from previous layer (or initial input)
+             • Load weights for current layer
+             • Prepare systolic array inputs
+
+Cycle 2:     [START_MATMUL]
+             • Assert systolic_start signal
+             • Begin matrix multiplication
+
+Cycle 3-12:  [WAIT_MATMUL]
+             • Systolic array processes data
+             • Data flows through PE array
+             • Accumulation occurs at each PE
+
+Cycle 13:    [APPLY_BIAS]
+             • VPU operation = BIAS_ADD
+             • Add bias_layer[N] to all 9 outputs
+
+Cycle 14-15: [APPLY_ACTIVATION]
+             • VPU operation = activation function
+             • Apply ReLU, Sigmoid, etc.
+             • Wait for VPU to complete
+
+Cycle 16-17: [STORE_RESULT]
+             • Store processed output to layer buffer
+             • Prepare for next layer
+
+Cycle 18:    [NEXT_LAYER]
+             • Increment layer counter
+             • Check if more layers remain
+             • If yes → back to LOAD_WEIGHTS
+             • If no → COMPLETE
+```
+
+### Multi-Layer Execution Timeline
+
+```
+Time (cycles) →
+
+0─────10────20────30────40────50────60
+
+Layer 0:  [L][MatMul──][B][A][S]
+                              └─→ Layer 1: [L][MatMul──][B][A][S]
+                                                              └─→ Layer 2: [L][MatMul──][B][A][S]
+                                                                                              └─→[DONE]
+
+Legend:
+[L] = Load Weights
+[MatMul] = Matrix Multiplication (~10 cycles)
+[B] = Apply Bias
+[A] = Apply Activation
+[S] = Store Result
+```
+
+---
+
+## Memory Organization
+
+### Layer Buffer
+```
+┌─────────────────────────────────────┐
+│      LAYER BUFFER (9 × 32-bit)      │
+│                                     │
+│  [0][1][2][3][4][5][6][7][8]        │
+│                                     │
+│  Stores:                            │
+│  • Initial input (first layer)      │
+│  • Intermediate results             │
+│  • Input for next layer             │
+└─────────────────────────────────────┘
+```
+
+### Configuration Storage
+```
+┌──────────────────────────────────────────┐
+│    PER-LAYER CONFIGURATION ARRAYS        │
+│                                          │
+│  bias_layer[0:NUM_LAYERS-1]              │
+│  [10][5][0]  (example for 3 layers)      │
+│                                          │
+│  vpu_ops_layer[0:NUM_LAYERS-1]           │
+│  [ReLU][ReLU][Sigmoid]                   │
+│                                          │
+│  scale_layer[0:NUM_LAYERS-1]             │
+│  [256][256][256]  (1.0 in fixed-point)   │
+└──────────────────────────────────────────┘
+```
+
+### Weight Memory (External)
+```
+┌──────────────────────────────────────────┐
+│        WEIGHT STORAGE                    │
+│                                          │
+│  Layer 0 Weights: [W00...W08] (9 vals)   │
+│  Layer 1 Weights: [W00...W08] (9 vals)   │
+│  Layer 2 Weights: [W00...W08] (9 vals)   │
+│                                          │
+│  Accessed via:                           │
+│  weights[0:8] ← load(current_layer)      │
+└──────────────────────────────────────────┘
+```
+
+---
+
+## Control Signals
+
+### NPU Top-Level Control
+```
+INPUT CONTROLS:
+• start       : Pulse to begin inference
+• rst         : Asynchronous reset
+
+OUTPUT STATUS:
+• done        : Asserted when all layers complete
+• current_layer : Which layer is being processed
+• state       : Current FSM state (for debugging)
+```
+
+### Internal Controls
+```
+SYSTOLIC ARRAY:
+• systolic_start  : Start matrix multiplication
+• systolic_done   : Multiplication complete
+
+VPU:
+• vpu_enable      : Enable VPU processing
+• vpu_operation   : Select operation type
+• vpu_valid       : Output ready
+```
+
+---
+
+## Pipeline Stages per Layer
+
+```
+┌───────────────────────────────────────────────────────────┐
+│                    LAYER N PROCESSING                     │
+├────────────┬──────────────────────────────────────────────┤
+│ Stage 1    │ LOAD: Input data + Weights → Systolic Array │
+├────────────┼──────────────────────────────────────────────┤
+│ Stage 2    │ COMPUTE: Matrix Multiplication (10 cycles)  │
+├────────────┼──────────────────────────────────────────────┤
+│ Stage 3    │ POST-PROCESS: Bias Addition (VPU)           │
+├────────────┼──────────────────────────────────────────────┤
+│ Stage 4    │ POST-PROCESS: Activation Function (VPU)     │
+├────────────┼──────────────────────────────────────────────┤
+│ Stage 5    │ STORE: Result → Layer Buffer                │
+└────────────┴──────────────────────────────────────────────┘
+                           ↓
+                    [Next Layer or Done]
+```
+
+---
+
+## Example: 3-Layer Classification Network
+
+```
+INPUT: 3×3 Image
+   [1 0 1]
+   [0 1 0]
+   [1 0 1]
+      ↓
+┌─────────────────────────────────────┐
+│  LAYER 0: Feature Extraction        │
+│  • MatMul with learned weights      │
+│  • Bias = 5                         │
+│  • Activation = ReLU                │
+│  Output: Extracted features         │
+└─────────────┬───────────────────────┘
+              ↓
+┌─────────────────────────────────────┐
+│  LAYER 1: Feature Processing        │
+│  • MatMul with learned weights      │
+│  • Bias = 3                         │
+│  • Activation = ReLU                │
+│  Output: Processed features         │
+└─────────────┬───────────────────────┘
+              ↓
+┌─────────────────────────────────────┐
+│  LAYER 2: Classification            │
+│  • MatMul with learned weights      │
+│  • Bias = 0                         │
+│  • Activation = Sigmoid             │
+│  Output: Classification scores      │
+└─────────────┬───────────────────────┘
+              ↓
+       OUTPUT: 3×3 Result
+       (Can use center value
+        as binary decision)
+```
+
+---
+
+## Key Features Summary
+
+### Modularity
+```
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│   Systolic   │→ │     VPU      │→ │     FSM      │
+│    Array     │  │              │  │  Controller  │
+│  (Compute)   │  │(Post-process)│  │   (Manage)   │
+└──────────────┘  └──────────────┘  └──────────────┘
+
+Each module can be:
+• Tested independently
+• Replaced/upgraded
+• Reused in other designs
+```
+
+### Scalability
+```
+PARAMETERS:
+• NUM_LAYERS    : 1 to N layers
+• MATRIX_SIZE   : 9 (3×3), can extend to N×N
+• DATA_WIDTH    : 4, 8, 16, 32 bits
+• ACC_WIDTH     : 16, 32, 64 bits
+
+EXTENSION:
+• Add more layers → increase NUM_LAYERS
+• Larger matrices → modify systolic array
+• More precision → increase bit widths
+```
+
+### Flexibility
+```
+PER-LAYER CONFIGURATION:
+• Different activations per layer
+• Different biases per layer
+• Different scaling per layer
+• Mix and match operations
+
+SUPPORTED NETWORKS:
+✓ Fully connected
+✓ Classification
+✓ Regression
+✓ Feature extraction
+✓ Pattern detection
+```
+
+---
+
+## Resource Utilization
+
+### Computation Resources
+```
+SYSTOLIC ARRAY:
+• 9 × Processing Elements (MAC units)
+• 9 × ACC_WIDTH-bit accumulators
+• Interconnect fabric
+
+VPU:
+• 9 × parallel processing lanes
+• Function approximation logic
+• Pooling reduction tree
+
+TOTAL: ~10 compute units operating in parallel
+```
+
+### Memory Resources
+```
+INTERNAL:
+• Layer buffer: 9 × ACC_WIDTH bits
+• Configuration: 3 × NUM_LAYERS × ACC_WIDTH bits
+• State registers: ~100 bits
+
+EXTERNAL (if used):
+• Weight memory: NUM_LAYERS × 9 × DATA_WIDTH bits
+• Input/Output buffers
+```
+
+### Control Logic
+```
+FSM Controller:
+• 9 states
+• ~20 control signals
+• Layer counter (8 bits)
+• Cycle counter (8 bits)
+```
+
+---
+
+This architecture provides a complete, efficient, and scalable solution for
+running neural networks on hardware accelerators!

@@ -1,0 +1,399 @@
+# NPU (Neural Processing Unit) - Top Module Documentation
+
+## Overview
+
+The NPU Top Module is a complete, parameterizable neural network accelerator that can execute multi-layer neural networks. It integrates the systolic array for matrix multiplication and the VPU for post-processing operations.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         NPU TOP MODULE                          │
+│                                                                 │
+│  ┌───────────┐                                                  │
+│  │  Input    │                                                  │
+│  │  Buffer   │                                                  │
+│  └─────┬─────┘                                                  │
+│        │                                                        │
+│        v                                                        │
+│  ┌─────────────────────────────────────┐                       │
+│  │         Layer FSM Controller         │                       │
+│  │  (Manages multi-layer execution)     │                       │
+│  └──────┬──────────────────────┬────────┘                       │
+│         │                      │                                │
+│         v                      v                                │
+│  ┌──────────────┐       ┌─────────────┐                        │
+│  │   Weights    │       │   Layer     │                        │
+│  │   Memory     │       │   Buffer    │                        │
+│  │  Interface   │       │ (Inter-layer│                        │
+│  └──────┬───────┘       │   Storage)  │                        │
+│         │               └──────┬──────┘                        │
+│         │                      │                                │
+│         v                      v                                │
+│  ┌─────────────────────────────────────┐                       │
+│  │      SYSTOLIC ARRAY 3x3             │                       │
+│  │   (Matrix Multiplication Engine)    │                       │
+│  │                                     │                       │
+│  │  ┌────┐  ┌────┐  ┌────┐            │                       │
+│  │  │PE00│─→│PE01│─→│PE02│            │                       │
+│  │  └─┬──┘  └─┬──┘  └─┬──┘            │                       │
+│  │    ↓      ↓      ↓                 │                       │
+│  │  ┌────┐  ┌────┐  ┌────┐            │                       │
+│  │  │PE10│─→│PE11│─→│PE12│            │                       │
+│  │  └─┬──┘  └─┬──┘  └─┬──┘            │                       │
+│  │    ↓      ↓      ↓                 │                       │
+│  │  ┌────┐  ┌────┐  ┌────┐            │                       │
+│  │  │PE20│─→│PE21│─→│PE22│            │                       │
+│  │  └────┘  └────┘  └────┘            │                       │
+│  └──────────────┬──────────────────────┘                       │
+│                 │                                              │
+│                 v                                              │
+│  ┌─────────────────────────────────────┐                       │
+│  │   VECTOR PROCESSING UNIT (VPU)      │                       │
+│  │  - Bias Addition                    │                       │
+│  │  - Activation Functions             │                       │
+│  │  - Pooling Operations               │                       │
+│  │  - Normalization                    │                       │
+│  └──────────────┬──────────────────────┘                       │
+│                 │                                              │
+│                 v                                              │
+│         Back to Layer Buffer                                   │
+│         (for next layer)                                       │
+│                 │                                              │
+│                 v                                              │
+│         ┌───────────────┐                                      │
+│         │ Output Buffer │                                      │
+│         └───────────────┘                                      │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Module Interface
+
+### Parameters
+
+| Parameter      | Default | Description                                    |
+|----------------|---------|------------------------------------------------|
+| NUM_LAYERS     | 3       | Number of layers in the neural network         |
+| DATA_WIDTH     | 8       | Width of input data and weights                |
+| ACC_WIDTH      | 32      | Width of accumulators and intermediate values  |
+| FRAC_BITS      | 8       | Fractional bits for fixed-point arithmetic     |
+| MATRIX_SIZE    | 9       | Size of matrices (9 for 3×3)                   |
+
+### Ports
+
+#### Inputs
+- `clk` - Clock signal
+- `rst` - Asynchronous reset (active high)
+- `start` - Start inference (pulse)
+- `input_data[0:MATRIX_SIZE-1]` - Input data array
+- `weights[0:MATRIX_SIZE-1]` - Weight matrix for current layer
+- `bias_layer[0:NUM_LAYERS-1]` - Bias values for each layer
+- `vpu_ops_layer[0:NUM_LAYERS-1]` - VPU operation for each layer
+- `scale_layer[0:NUM_LAYERS-1]` - Scale factors for each layer
+
+#### Outputs
+- `output_data[0:MATRIX_SIZE-1]` - Final output after all layers
+- `done` - Inference complete flag
+- `current_layer[7:0]` - Currently processing layer index
+- `state[3:0]` - Current FSM state (for debugging)
+
+---
+
+## Operation Flow
+
+### FSM States
+
+1. **IDLE** - Waiting for start signal
+2. **LOAD_WEIGHTS** - Load weights and input for current layer
+3. **START_MATMUL** - Initiate systolic array computation
+4. **WAIT_MATMUL** - Wait for matrix multiplication to complete
+5. **APPLY_BIAS** - Add bias using VPU
+6. **APPLY_ACTIVATION** - Apply activation function using VPU
+7. **STORE_RESULT** - Store result in layer buffer
+8. **NEXT_LAYER** - Move to next layer or finish
+9. **COMPLETE** - Output final result and assert done
+
+### Execution Timeline
+
+```
+Time →
+
+Layer 0: [LOAD] [MATMUL──────] [BIAS] [ACTIV] [STORE]
+                                                    ↓
+Layer 1:                                      [LOAD] [MATMUL──────] [BIAS] [ACTIV] [STORE]
+                                                                                         ↓
+Layer 2:                                                                           [LOAD] [MATMUL──────] [BIAS] [ACTIV] [STORE]
+                                                                                                                              ↓
+                                                                                                                         [COMPLETE]
+```
+
+**Typical Timing per Layer:**
+- LOAD_WEIGHTS: 1 cycle
+- MATMUL: ~10 cycles (for 3×3)
+- BIAS: 1 cycle
+- ACTIVATION: 2 cycles
+- STORE: 2 cycles
+- **Total per layer: ~16 cycles**
+- **Total for 3 layers: ~48 cycles**
+
+---
+
+## Configuration Example
+
+### 3-Layer Classification Network
+
+```verilog
+// Layer 1: Input → Hidden (16 neurons)
+// Operation: MatMul → Bias → ReLU
+bias_layer[0] = 10;
+vpu_ops_layer[0] = 3'd1;  // RELU
+scale_layer[0] = 256;     // 1.0
+
+// Layer 2: Hidden → Hidden (16 neurons)
+// Operation: MatMul → Bias → ReLU
+bias_layer[1] = 5;
+vpu_ops_layer[1] = 3'd1;  // RELU
+scale_layer[1] = 256;     // 1.0
+
+// Layer 3: Hidden → Output (classification)
+// Operation: MatMul → Bias → Sigmoid
+bias_layer[2] = 0;
+vpu_ops_layer[2] = 3'd6;  // SIGMOID
+scale_layer[2] = 256;     // 1.0
+```
+
+---
+
+## Weight Loading
+
+The NPU expects weights to be provided externally. The testbench demonstrates a simple approach where weights are switched based on the `current_layer` signal:
+
+```verilog
+// Weight memory simulation
+always @(posedge clk) begin
+    case (current_layer)
+        0: weights = layer1_weights;
+        1: weights = layer2_weights;
+        2: weights = layer3_weights;
+    endcase
+end
+```
+
+**In a real implementation**, weights could be:
+- Stored in external SRAM/DRAM
+- Loaded from on-chip weight memory
+- Streamed from a DMA controller
+- Pre-loaded into weight buffer
+
+---
+
+## Layer Buffer
+
+The layer buffer stores intermediate results between layers:
+- **Size**: MATRIX_SIZE × ACC_WIDTH bits
+- **Function**: Holds output of layer N to use as input for layer N+1
+- **Width**: Full ACC_WIDTH to preserve precision between layers
+
+---
+
+## Supported Network Architectures
+
+### Fully Connected Networks
+```
+Input (3×3) → FC Layer 1 → FC Layer 2 → FC Layer 3 → Output
+```
+
+### Convolutional-like Operations
+By configuring different weights for each layer, you can approximate:
+- Edge detection filters
+- Feature extraction
+- Pattern recognition
+
+### With Pooling
+```
+Layer 1: MatMul → Bias → ReLU
+Layer 2: MatMul → Bias → Max Pool
+Layer 3: MatMul → Bias → Sigmoid
+```
+
+---
+
+## Scaling to Larger Networks
+
+### More Layers
+Simply change the `NUM_LAYERS` parameter:
+```verilog
+npu_top #(
+    .NUM_LAYERS(5),  // 5-layer network
+    ...
+) my_npu (...);
+```
+
+### Larger Matrices
+For NxN matrices where N ≠ 3:
+1. Modify `MATRIX_SIZE` parameter
+2. Update systolic array to NxN
+3. Update VPU to handle N² elements
+
+### Multiple NPUs
+For parallel processing:
+```verilog
+// Process multiple inputs simultaneously
+npu_top npu0 (.input_data(input0), ...);
+npu_top npu1 (.input_data(input1), ...);
+npu_top npu2 (.input_data(input2), ...);
+```
+
+---
+
+## Example Networks
+
+### 1. Binary Classifier
+```
+Layers: 3
+Layer 0: Input(3×3) → Hidden(3×3) + ReLU
+Layer 1: Hidden(3×3) → Hidden(3×3) + ReLU  
+Layer 2: Hidden(3×3) → Output(3×3) + Sigmoid
+Output: Classification scores
+```
+
+### 2. Feature Extractor
+```
+Layers: 2
+Layer 0: Input(3×3) → Features(3×3) + ReLU
+Layer 1: Features(3×3) → Output(3×3) + MaxPool
+Output: Pooled features
+```
+
+### 3. Autoencoder
+```
+Layers: 3
+Layer 0: Input(3×3) → Encoded(3×3) + ReLU (encoder)
+Layer 1: Encoded(3×3) → Decoded(3×3) + ReLU
+Layer 2: Decoded(3×3) → Output(3×3) + Sigmoid (reconstruction)
+```
+
+---
+
+## Performance Characteristics
+
+### Throughput
+- **Latency**: ~16 cycles/layer
+- **3-Layer Network**: ~48 cycles total
+- **At 100 MHz**: 480 ns per inference
+- **Throughput**: ~2 million inferences/second
+
+### Resource Utilization (Typical FPGA)
+- **9 Processing Elements** (MAC units)
+- **1 VPU** (post-processing)
+- **Memory**: Layer buffers + weight storage
+- **Control Logic**: FSM + counters
+
+### Power Efficiency
+- **Active Power**: During computation (systolic + VPU)
+- **Idle Power**: Minimal (FSM only)
+- **Per-layer**: Power cycles with activity
+
+---
+
+## Integration with External Memory
+
+### Option 1: Direct Weight Input
+```verilog
+// External weight memory controller
+weight_controller weight_ctrl (
+    .layer_index(current_layer),
+    .weights_out(weights)
+);
+```
+
+### Option 2: AXI Interface
+```verilog
+// AXI master to fetch weights
+axi_master weight_fetch (
+    .layer_index(current_layer),
+    .m_axi_*(...),
+    .weights_out(weights)
+);
+```
+
+### Option 3: On-chip BRAM
+```verilog
+// Block RAM for weight storage
+weight_memory #(
+    .NUM_LAYERS(3),
+    .WEIGHTS_PER_LAYER(9)
+) weight_mem (
+    .addr(current_layer),
+    .data_out(weights)
+);
+```
+
+---
+
+## Usage Example
+
+### Compile and Simulate
+
+```bash
+# Compile NPU with all dependencies
+iverilog -o sim_npu \
+    tb_npu_top.v \
+    npu_top.v \
+    systolic_with_vpu.v \
+    systolic_array.v \
+    systolic_controller.v \
+    processing_element.v \
+    vector_processing_unit.v
+
+# Run simulation
+vvp sim_npu
+
+# Expected output:
+# Processing Layer 0...
+# Processing Layer 1...
+# Processing Layer 2...
+# INFERENCE COMPLETE
+```
+
+---
+
+## Future Enhancements
+
+1. **Pipelining**: Process multiple inputs simultaneously
+2. **Dynamic Precision**: Adjust ACC_WIDTH per layer
+3. **Sparse Support**: Skip zero-weight computations
+4. **Quantization**: INT4/INT8 weights
+5. **Attention Mechanisms**: Add attention layers
+6. **Batch Processing**: Process multiple samples in parallel
+7. **External Memory**: Integration with DDR/SRAM
+
+---
+
+## Key Features Summary
+
+✓ **Parameterizable**: Configurable layers, precision, matrix size  
+✓ **Modular Design**: Clean separation of concerns  
+✓ **Full Pipeline**: MatMul → Bias → Activation  
+✓ **Multiple Activations**: ReLU, Sigmoid, Tanh, etc.  
+✓ **Inter-layer Buffering**: Preserves precision  
+✓ **Status Monitoring**: Layer index and FSM state outputs  
+✓ **Scalable**: Easy to add more layers or change size  
+
+---
+
+## Files
+
+- `npu_top.v` - Top-level NPU module
+- `tb_npu_top.v` - Comprehensive testbench
+- Uses all previous modules:
+  - `systolic_with_vpu.v`
+  - `systolic_array.v`
+  - `processing_element.v`
+  - `systolic_controller.v`
+  - `vector_processing_unit.v`

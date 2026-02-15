@@ -1,29 +1,52 @@
-
-// Testbench for Sthe systolic Array 
+// Testbench for NPU Top Module
+// Tests a 3-layer neural network
 
 module top();
 
+    parameter NUM_LAYERS = 3;
     parameter DATA_WIDTH = 8;
     parameter ACC_WIDTH = 32;
+    parameter FRAC_BITS = 8;
+    parameter MATRIX_SIZE = 9;
     parameter CLK_PERIOD = 10;
     
     reg clk;
     reg rst;
     reg start;
     
-    // Input matrices (1D arrays)
-    reg [DATA_WIDTH-1:0] matrix_a [0:8];
-    reg [DATA_WIDTH-1:0] matrix_b [0:8];
+    // Input data
+    reg [DATA_WIDTH-1:0] input_data [0:MATRIX_SIZE-1];
     
-    // Controller outputs
-    wire [DATA_WIDTH-1:0] west_0, west_1, west_2;
-    wire [DATA_WIDTH-1:0] north_0, north_1, north_2;
+    // Weights for current layer being processed
+    reg [DATA_WIDTH-1:0] weights [0:MATRIX_SIZE-1];
+    
+    // Per-layer configuration
+    reg [ACC_WIDTH-1:0] bias_layer [0:NUM_LAYERS-1];
+    reg [2:0] vpu_ops_layer [0:NUM_LAYERS-1];
+    reg [ACC_WIDTH-1:0] scale_layer [0:NUM_LAYERS-1];
+    
+    // Outputs
+    wire [ACC_WIDTH-1:0] output_data [0:MATRIX_SIZE-1];
     wire done;
+    wire [7:0] current_layer;
+    wire [3:0] state;
     
-    // Systolic array outputs
-    wire [ACC_WIDTH-1:0] result_00, result_01, result_02;
-    wire [ACC_WIDTH-1:0] result_10, result_11, result_12;
-    wire [ACC_WIDTH-1:0] result_20, result_21, result_22;
+    // Weight storage for all layers
+    reg [DATA_WIDTH-1:0] layer1_weights [0:MATRIX_SIZE-1];
+    reg [DATA_WIDTH-1:0] layer2_weights [0:MATRIX_SIZE-1];
+    reg [DATA_WIDTH-1:0] layer3_weights [0:MATRIX_SIZE-1];
+    
+    // VPU operation codes
+    localparam OP_PASSTHROUGH = 3'd0;
+    localparam OP_RELU        = 3'd1;
+    localparam OP_BIAS_ADD    = 3'd2;
+    localparam OP_SCALE       = 3'd3;
+    localparam OP_MAX_POOL    = 3'd4;
+    localparam OP_AVG_POOL    = 3'd5;
+    localparam OP_SIGMOID     = 3'd6;
+    localparam OP_TANH        = 3'd7;
+    
+    integer i;
     
     // Clock generation
     initial begin
@@ -31,111 +54,195 @@ module top();
         forever #(CLK_PERIOD/2) clk = ~clk;
     end
     
-    initial begin
-      $readmemh("weights.hex", matrix_a);
-      $readmemh("inputs.hex", matrix_b);
-  end
+    // Weight update logic - simulates weight memory
+    always @(posedge clk) begin
+        case (current_layer)
+            0: begin
+                for (i = 0; i < MATRIX_SIZE; i = i + 1) begin
+                    weights[i] = layer1_weights[i];
+                end
+            end
+            1: begin
+                for (i = 0; i < MATRIX_SIZE; i = i + 1) begin
+                    weights[i] = layer2_weights[i];
+                end
+            end
+            2: begin
+                for (i = 0; i < MATRIX_SIZE; i = i + 1) begin
+                    weights[i] = layer3_weights[i];
+                end
+            end
+            default: begin
+                for (i = 0; i < MATRIX_SIZE; i = i + 1) begin
+                    weights[i] = layer1_weights[i];
+                end
+            end
+        endcase
+    end
     
-    // Instantiate controller
-    systolic_controller #(DATA_WIDTH) controller (
+    // Instantiate NPU
+    npu_top #(
+        .NUM_LAYERS(NUM_LAYERS),
+        .DATA_WIDTH(DATA_WIDTH),
+        .ACC_WIDTH(ACC_WIDTH),
+        .FRAC_BITS(FRAC_BITS),
+        .MATRIX_SIZE(MATRIX_SIZE)
+    ) dut (
         .clk(clk),
         .rst(rst),
         .start(start),
-        .matrix_a(matrix_a),
-        .matrix_b(matrix_b),
-        .west_0(west_0),
-        .west_1(west_1),
-        .west_2(west_2),
-        .north_0(north_0),
-        .north_1(north_1),
-        .north_2(north_2),
-        .done(done)
-    );
-    
-    // Instantiate systolic array
-    systolic_array #(DATA_WIDTH, ACC_WIDTH) array (
-        .clk(clk),
-        .rst(rst),
-        .north_0(north_0),
-        .north_1(north_1),
-        .north_2(north_2),
-        .west_0(west_0),
-        .west_1(west_1),
-        .west_2(west_2),
-        .result_00(result_00),
-        .result_01(result_01),
-        .result_02(result_02),
-        .result_10(result_10),
-        .result_11(result_11),
-        .result_12(result_12),
-        .result_20(result_20),
-        .result_21(result_21),
-        .result_22(result_22)
+        .input_data(input_data),
+        .weights(weights),
+        .bias_layer(bias_layer),
+        .vpu_ops_layer(vpu_ops_layer),
+        .scale_layer(scale_layer),
+        .output_data(output_data),
+        .done(done),
+        .current_layer(current_layer),
+        .state(state)
     );
     
     // Test procedure
     initial begin
-        $display("Starting Systolic Array Matrix Multiplication Test");
-        $display("=============================================");
+        $display("=========================================================");
+        $display("NPU Top Module Test - 3-Layer Neural Network");
+        $display("=========================================================\n");
         
         // Initialize
         rst = 1;
         start = 0;
         
-        // Initialize Matrix A (3x3)
-        // [1 2 3]
-        // [4 5 6]
-        // [7 8 9]
-        //matrix_a[0] = 1; matrix_a[1] = 2; matrix_a[2] = 3;
-        //matrix_a[3] = 4; matrix_a[4] = 5; matrix_a[5] = 6;
-        //matrix_a[6] = 7; matrix_a[7] = 8; matrix_a[8] = 9;
+        // Initialize input data (3x3 input)
+        // Simple test pattern
+        input_data[0] = 1; input_data[1] = 0; input_data[2] = 1;
+        input_data[3] = 0; input_data[4] = 1; input_data[5] = 0;
+        input_data[6] = 1; input_data[7] = 0; input_data[8] = 1;
         
-        // Initialize Matrix B (3x3)
-        // [9 8 7]
-        // [6 5 4]
-        // [3 2 1]
-        //matrix_b[0] = 9; matrix_b[1] = 8; matrix_b[2] = 7;
-        //matrix_b[3] = 6; matrix_b[4] = 5; matrix_b[5] = 4;
-        //matrix_b[6] = 3; matrix_b[7] = 2; matrix_b[8] = 1;
+        $display("Input Data (3x3):");
+        $display("[%0d %0d %0d]", input_data[0], input_data[1], input_data[2]);
+        $display("[%0d %0d %0d]", input_data[3], input_data[4], input_data[5]);
+        $display("[%0d %0d %0d]", input_data[6], input_data[7], input_data[8]);
         
-        $display("\nMatrix A:");
-        $display("[%0d %0d %0d]", matrix_a[0], matrix_a[1], matrix_a[2]);
-        $display("[%0d %0d %0d]", matrix_a[3], matrix_a[4], matrix_a[5]);
-        $display("[%0d %0d %0d]", matrix_a[6], matrix_a[7], matrix_a[8]);
+        // Configure Layer 1: Hidden Layer with ReLU
+        $display("\n--- Layer 1 Configuration ---");
+        $display("Type: Hidden Layer (MatMul + Bias + ReLU)");
+        layer1_weights[0] = 2; layer1_weights[1] = 1; layer1_weights[2] = 2;
+        layer1_weights[3] = 1; layer1_weights[4] = 2; layer1_weights[5] = 1;
+        layer1_weights[6] = 2; layer1_weights[7] = 1; layer1_weights[8] = 2;
         
-        $display("\nMatrix B:");
-        $display("[%0d %0d %0d]", matrix_b[0], matrix_b[1], matrix_b[2]);
-        $display("[%0d %0d %0d]", matrix_b[3], matrix_b[4], matrix_b[5]);
-        $display("[%0d %0d %0d]", matrix_b[6], matrix_b[7], matrix_b[8]);
+        $display("Weights:");
+        $display("[%0d %0d %0d]", layer1_weights[0], layer1_weights[1], layer1_weights[2]);
+        $display("[%0d %0d %0d]", layer1_weights[3], layer1_weights[4], layer1_weights[5]);
+        $display("[%0d %0d %0d]", layer1_weights[6], layer1_weights[7], layer1_weights[8]);
+        
+        bias_layer[0] = 5;
+        vpu_ops_layer[0] = OP_RELU;
+        scale_layer[0] = 256; // 1.0 in fixed point
+        $display("Bias: %0d", bias_layer[0]);
+        $display("Activation: ReLU");
+        
+        // Configure Layer 2: Hidden Layer with ReLU
+        $display("\n--- Layer 2 Configuration ---");
+        $display("Type: Hidden Layer (MatMul + Bias + ReLU)");
+        layer2_weights[0] = 1; layer2_weights[1] = 1; layer2_weights[2] = 1;
+        layer2_weights[3] = 1; layer2_weights[4] = 1; layer2_weights[5] = 1;
+        layer2_weights[6] = 1; layer2_weights[7] = 1; layer2_weights[8] = 1;
+        
+        $display("Weights:");
+        $display("[%0d %0d %0d]", layer2_weights[0], layer2_weights[1], layer2_weights[2]);
+        $display("[%0d %0d %0d]", layer2_weights[3], layer2_weights[4], layer2_weights[5]);
+        $display("[%0d %0d %0d]", layer2_weights[6], layer2_weights[7], layer2_weights[8]);
+        
+        bias_layer[1] = 2;
+        vpu_ops_layer[1] = OP_RELU;
+        scale_layer[1] = 256; // 1.0 in fixed point
+        $display("Bias: %0d", bias_layer[1]);
+        $display("Activation: ReLU");
+        
+        // Configure Layer 3: Output Layer with Sigmoid
+        $display("\n--- Layer 3 Configuration ---");
+        $display("Type: Output Layer (MatMul + Bias + Sigmoid)");
+        layer3_weights[0] = 1; layer3_weights[1] = 0; layer3_weights[2] = 1;
+        layer3_weights[3] = 0; layer3_weights[4] = 1; layer3_weights[5] = 0;
+        layer3_weights[6] = 1; layer3_weights[7] = 0; layer3_weights[8] = 1;
+        
+        $display("Weights:");
+        $display("[%0d %0d %0d]", layer3_weights[0], layer3_weights[1], layer3_weights[2]);
+        $display("[%0d %0d %0d]", layer3_weights[3], layer3_weights[4], layer3_weights[5]);
+        $display("[%0d %0d %0d]", layer3_weights[6], layer3_weights[7], layer3_weights[8]);
+        
+        bias_layer[2] = 1;
+        vpu_ops_layer[2] = OP_SIGMOID;
+        scale_layer[2] = 256; // 1.0 in fixed point
+        $display("Bias: %0d", bias_layer[2]);
+        $display("Activation: Sigmoid");
         
         // Reset
+        $display("\n--- Starting Inference ---");
         #(CLK_PERIOD*2);
         rst = 0;
         #(CLK_PERIOD);
         
-        // Start computation
+        // Start inference
         start = 1;
+        #(CLK_PERIOD);
+        start = 0;
         
-        // Wait for computation to complete
+        // Monitor progress
+        $display("\nProcessing layers...");
+        
+        // Wait for completion
         wait(done);
-        #(CLK_PERIOD*5);  // Wait a few more cycles for results to stabilize
+        #(CLK_PERIOD*5);
         
-        // Display results
-        $display("\nResult Matrix C = A × B:");
-        $display("[%0d %0d %0d]", result_00, result_01, result_02);
-        $display("[%0d %0d %0d]", result_10, result_11, result_12);
-        $display("[%0d %0d %0d]", result_20, result_21, result_22);
+        // Display final output
+        $display("\n=========================================================");
+        $display("INFERENCE COMPLETE");
+        $display("=========================================================");
+        $display("\nFinal Output (3x3):");
+        $display("[%0d %0d %0d]", output_data[0], output_data[1], output_data[2]);
+        $display("[%0d %0d %0d]", output_data[3], output_data[4], output_data[5]);
+        $display("[%0d %0d %0d]", output_data[6], output_data[7], output_data[8]);
         
-        $display("\nTest completed!");
+        $display("\n--- Summary ---");
+        $display("Input → Layer1(ReLU) → Layer2(ReLU) → Layer3(Sigmoid) → Output");
+        $display("Total Layers Processed: %0d", NUM_LAYERS);
+        $display("=========================================================\n");
+        
+        #(CLK_PERIOD*10);
         $finish;
     end
     
-    // Optional: Monitor signals during simulation
-    /*initial begin
-        $monitor("Time=%0t | Cycle=%0d | West=[%0d,%0d,%0d] North=[%0d,%0d,%0d]", 
-                 $time, controller.cycle_count, 
-                 west_0, west_1, west_2, 
-                 north_0, north_1, north_2);
-    end*/
+    // Layer transition monitor
+    reg [7:0] prev_layer;
+    initial prev_layer = 0;
+    
+    always @(posedge clk) begin
+        if (current_layer != prev_layer && !rst) begin
+            $display("[Time %0t] Processing Layer %0d", $time, current_layer);
+            prev_layer = current_layer;
+        end
+    end
+    
+    // State monitor (optional, for debugging)
+    reg [3:0] prev_state;
+    initial prev_state = 0;
+    
+    always @(posedge clk) begin
+        if (state != prev_state && !rst) begin
+            case (state)
+                0: $display("  State: IDLE");
+                1: $display("  State: LOAD_WEIGHTS");
+                2: $display("  State: START_MATMUL");
+                3: $display("  State: WAIT_MATMUL");
+                4: $display("  State: APPLY_BIAS");
+                5: $display("  State: APPLY_ACTIVATION");
+                6: $display("  State: STORE_RESULT");
+                7: $display("  State: NEXT_LAYER");
+                8: $display("  State: COMPLETE");
+            endcase
+            prev_state = state;
+        end
+    end
 
 endmodule
