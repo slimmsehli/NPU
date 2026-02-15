@@ -1,13 +1,4 @@
 
-
-
-
-
-
-
-
-
-
 // Testbench for Sthe systolic Array 
 
 module top();
