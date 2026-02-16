@@ -1,141 +1,112 @@
-
-// Testbench for Sthe systolic Array 
-
-module top();
-
-    parameter DATA_WIDTH = 8;
-    parameter ACC_WIDTH = 32;
-    parameter CLK_PERIOD = 10;
-    
-    reg clk;
+module top;
+		parameter DATA_WIDTH = 8;
+		parameter ACC_WIDTH = 32;
+		parameter FRAC_BITS = 8;
+		parameter CLK_PERIOD = 10;
+		parameter LENGTH = 9;
+		parameter LAYERS = 3;
+		
+		reg clk;
     reg rst;
-    reg start;
+    reg start_p;
+   
+    // input matrices
+    reg [DATA_WIDTH-1:0] mat_inputs [0:LENGTH-1];
+    reg [DATA_WIDTH-1:0] mat_weights [0:LAYERS-1][0:LENGTH-1];
     
-    // Input matrices (1D arrays)
-    reg [DATA_WIDTH-1:0] matrix_a [0:8];
-    reg [DATA_WIDTH-1:0] matrix_b [0:8];
-    
-    // Controller outputs
-    wire [DATA_WIDTH-1:0] west_0, west_1, west_2;
-    wire [DATA_WIDTH-1:0] north_0, north_1, north_2;
-    wire done;
-    
-    // Systolic array outputs
-    wire [ACC_WIDTH-1:0] result_00, result_01, result_02;
-    wire [ACC_WIDTH-1:0] result_10, result_11, result_12;
-    wire [ACC_WIDTH-1:0] result_20, result_21, result_22;
-    
-    // Clock generation
+    // output
+    wire [ACC_WIDTH-1:0] raw_result [0:LAYERS-1][0:LENGTH-1];
+    wire [ACC_WIDTH-1:0] result [0:LAYERS-1][0:LENGTH-1];
+    wire [LAYERS-1:0] controller_done;
+    wire [LAYERS-1:0] vpu_valid;
+
+
+	// ######################################
+	// Clock
+	initial begin
+		  clk = 0;
+		  forever #(CLK_PERIOD/2) clk = ~clk;
+	end
+	
+	// memory load
     initial begin
-        clk = 0;
-        forever #(CLK_PERIOD/2) clk = ~clk;
-    end
-    
-    initial begin
-      $readmemh("weights.hex", matrix_a);
-      $readmemh("inputs.hex", matrix_b);
-  end
-    
-    // Instantiate controller
-    systolic_controller #(DATA_WIDTH) controller (
-        .clk(clk),
-        .rst(rst),
-        .start(start),
-        .matrix_a(matrix_a),
-        .matrix_b(matrix_b),
-        .west_0(west_0),
-        .west_1(west_1),
-        .west_2(west_2),
-        .north_0(north_0),
-        .north_1(north_1),
-        .north_2(north_2),
-        .done(done)
-    );
-    
-    // Instantiate systolic array
-    systolic_array #(DATA_WIDTH, ACC_WIDTH) array (
-        .clk(clk),
-        .rst(rst),
-        .north_0(north_0),
-        .north_1(north_1),
-        .north_2(north_2),
-        .west_0(west_0),
-        .west_1(west_1),
-        .west_2(west_2),
-        .result_00(result_00),
-        .result_01(result_01),
-        .result_02(result_02),
-        .result_10(result_10),
-        .result_11(result_11),
-        .result_12(result_12),
-        .result_20(result_20),
-        .result_21(result_21),
-        .result_22(result_22)
-    );
-    
+      $readmemh("../memories/inputs.hex", mat_inputs);
+      $readmemh("../memories/weights_L0.hex", mat_weights[0]);
+      $readmemh("../memories/weights_L1.hex", mat_weights[1]);
+      $readmemh("../memories/weights_L2.hex", mat_weights[2]);
+  	end
+	
+	// ######################################
     // Test procedure
-    initial begin
-        $display("Starting Systolic Array Matrix Multiplication Test");
-        $display("=============================================");
+		initial begin
+			$display("=======================================================");
+			$display("Systolic Array with Vector Processing Unit - Test Suite");
+			$display("=======================================================\n");
+			start_p = 0;
+			rst = 1'b1;
+			start_p = 0;
+			// Reset
+			#(CLK_PERIOD*2);
+			rst = 0;
+			#(CLK_PERIOD*5);
+			start_p = 1;
+			repeat (50) @(posedge clk);
+			$finish;
+		end
+	
+	// ######################################
+    // Final loop
+    integer fd;
+    final begin
+        $display("\n=======================================================");
+        $display("All tests completed!");
+        $display("=======================================================");
+        // Display raw results
+        $display("\n\n--- Input Matrix ---\n");
+        for (integer i=1; i<LENGTH+1;i++) begin
+        	$write(" %0d ", mat_inputs[i-1]);
+        	if (i%3==0) $write("\n");
+        end
+        // Display raw results
+        $display("\n\n--- Output Matrix ---\n");
+        for (integer i=1; i<LENGTH+1;i++) begin
+        	$write(" %0d ", raw_result[2][i-1]);
+        	if (i%3==0) $write("\n");
+        end
         
-        // Initialize
-        rst = 1;
-        start = 0;
+        fd = $fopen("../memories/npu_output.hex", "w");
+				for (integer i = 0; i < LENGTH; i++) begin
+					$fdisplay(fd, "%01h", raw_result[2][i]);
+				end
+				$fclose(fd);        
         
-        // Initialize Matrix A (3x3)
-        // [1 2 3]
-        // [4 5 6]
-        // [7 8 9]
-        //matrix_a[0] = 1; matrix_a[1] = 2; matrix_a[2] = 3;
-        //matrix_a[3] = 4; matrix_a[4] = 5; matrix_a[5] = 6;
-        //matrix_a[6] = 7; matrix_a[7] = 8; matrix_a[8] = 9;
-        
-        // Initialize Matrix B (3x3)
-        // [9 8 7]
-        // [6 5 4]
-        // [3 2 1]
-        //matrix_b[0] = 9; matrix_b[1] = 8; matrix_b[2] = 7;
-        //matrix_b[3] = 6; matrix_b[4] = 5; matrix_b[5] = 4;
-        //matrix_b[6] = 3; matrix_b[7] = 2; matrix_b[8] = 1;
-        
-        $display("\nMatrix A:");
-        $display("[%0d %0d %0d]", matrix_a[0], matrix_a[1], matrix_a[2]);
-        $display("[%0d %0d %0d]", matrix_a[3], matrix_a[4], matrix_a[5]);
-        $display("[%0d %0d %0d]", matrix_a[6], matrix_a[7], matrix_a[8]);
-        
-        $display("\nMatrix B:");
-        $display("[%0d %0d %0d]", matrix_b[0], matrix_b[1], matrix_b[2]);
-        $display("[%0d %0d %0d]", matrix_b[3], matrix_b[4], matrix_b[5]);
-        $display("[%0d %0d %0d]", matrix_b[6], matrix_b[7], matrix_b[8]);
-        
-        // Reset
-        #(CLK_PERIOD*2);
-        rst = 0;
-        #(CLK_PERIOD);
-        
-        // Start computation
-        start = 1;
-        
-        // Wait for computation to complete
-        wait(done);
-        #(CLK_PERIOD*5);  // Wait a few more cycles for results to stabilize
-        
-        // Display results
-        $display("\nResult Matrix C = A × B:");
-        $display("[%0d %0d %0d]", result_00, result_01, result_02);
-        $display("[%0d %0d %0d]", result_10, result_11, result_12);
-        $display("[%0d %0d %0d]", result_20, result_21, result_22);
-        
-        $display("\nTest completed!");
-        $finish;
     end
     
-    // Optional: Monitor signals during simulation
-    /*initial begin
-        $monitor("Time=%0t | Cycle=%0d | West=[%0d,%0d,%0d] North=[%0d,%0d,%0d]", 
-                 $time, controller.cycle_count, 
-                 west_0, west_1, west_2, 
-                 north_0, north_1, north_2);
-    end*/
+    // ######################################
+    npu_top
+			#(
+				.DATA_WIDTH(DATA_WIDTH), //parameter DATA_WIDTH = 8,
+				.ACC_WIDTH(ACC_WIDTH), //parameter ACC_WIDTH = 32,
+				.FRAC_BITS(FRAC_BITS), //parameter FRAC_BITS = 8,
+				.CLK_PERIOD(CLK_PERIOD), //parameter CLK_PERIOD = 10,
+				.LENGTH(LENGTH), //parameter LENGTH = 9,
+				.LAYERS(LAYERS) //parameter LAYERS = 3
+			)
+			npu_inst
+			(
+				// general input
+				.clk(clk), //input clk,
+				.rst(rst), //input rst,
+				.start_p(start_p), //input start_p,
+				// input matrices
+				.mat_inputs(mat_inputs), //input reg [DATA_WIDTH-1:0] mat_inputs [0:LENGTH-1],
+				.mat_weights(mat_weights), //input reg [DATA_WIDTH-1:0] mat_weights [0:LAYERS-1][0:LENGTH-1],
+				
+				// output
+				.raw_result(raw_result), //output [ACC_WIDTH-1:0] raw_result [0:LAYERS-1][0:LENGTH-1],
+				.result(result), //output [ACC_WIDTH-1:0] result [0:LAYERS-1][0:LENGTH-1],
+				.controller_done(controller_done), //output [LAYERS-1:0] controller_done,
+				.vpu_valid(vpu_valid) //output [LAYERS-1:0] vpu_valid
+		);  
 
 endmodule

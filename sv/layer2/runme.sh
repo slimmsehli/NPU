@@ -1,5 +1,13 @@
 #!/bin/bash -f
 
+set TOP_DIR = $PWD
+
+set FILES2 = "${TOP_DIR}/sv/layer/processing_element.v  \
+	${TOP_DIR}/sv/layer2/systolic_controller.v  \
+	${TOP_DIR}/sv/layer2/systolic_array.v      \
+	${TOP_DIR}/sv/layer2/vector_processing_unit.v \
+	${TOP_DIR}/sv/layer2/npu_layer.v \
+	${TOP_DIR}/sv/layer2/npu_top.v"
 
 rm -rf obj_dir
 
