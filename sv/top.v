@@ -54,6 +54,14 @@ module top();
         forever #(CLK_PERIOD/2) clk = ~clk;
     end
     
+    /// load memory
+    initial begin
+      $readmemh("/global/scsg_eu_verif/slim/test_py/NPU/memories/weights_L0.hex", layer1_weights);
+      $readmemh("/global/scsg_eu_verif/slim/test_py/NPU/memories/weights_L1.hex", layer2_weights);
+      $readmemh("/global/scsg_eu_verif/slim/test_py/NPU/memories/weights_L2.hex", layer3_weights);
+      $readmemh("/global/scsg_eu_verif/slim/test_py/NPU/memories/inputs.hex", input_data);
+  	end
+    
     // Weight update logic - simulates weight memory
     always @(posedge clk) begin
         case (current_layer)
@@ -114,9 +122,9 @@ module top();
         
         // Initialize input data (3x3 input)
         // Simple test pattern
-        input_data[0] = 1; input_data[1] = 0; input_data[2] = 1;
-        input_data[3] = 0; input_data[4] = 1; input_data[5] = 0;
-        input_data[6] = 1; input_data[7] = 0; input_data[8] = 1;
+        //input_data[0] = 1; input_data[1] = 0; input_data[2] = 1;
+        //input_data[3] = 0; input_data[4] = 1; input_data[5] = 0;
+        //input_data[6] = 1; input_data[7] = 0; input_data[8] = 1;
         
         $display("Input Data (3x3):");
         $display("[%0d %0d %0d]", input_data[0], input_data[1], input_data[2]);
@@ -126,16 +134,16 @@ module top();
         // Configure Layer 1: Hidden Layer with ReLU
         $display("\n--- Layer 1 Configuration ---");
         $display("Type: Hidden Layer (MatMul + Bias + ReLU)");
-        layer1_weights[0] = 2; layer1_weights[1] = 1; layer1_weights[2] = 2;
-        layer1_weights[3] = 1; layer1_weights[4] = 2; layer1_weights[5] = 1;
-        layer1_weights[6] = 2; layer1_weights[7] = 1; layer1_weights[8] = 2;
+        //layer1_weights[0] = 2; layer1_weights[1] = 1; layer1_weights[2] = 2;
+        //layer1_weights[3] = 1; layer1_weights[4] = 2; layer1_weights[5] = 1;
+        //layer1_weights[6] = 2; layer1_weights[7] = 1; layer1_weights[8] = 2;
         
         $display("Weights:");
         $display("[%0d %0d %0d]", layer1_weights[0], layer1_weights[1], layer1_weights[2]);
         $display("[%0d %0d %0d]", layer1_weights[3], layer1_weights[4], layer1_weights[5]);
         $display("[%0d %0d %0d]", layer1_weights[6], layer1_weights[7], layer1_weights[8]);
         
-        bias_layer[0] = 5;
+        bias_layer[0] = 0;
         vpu_ops_layer[0] = OP_RELU;
         scale_layer[0] = 256; // 1.0 in fixed point
         $display("Bias: %0d", bias_layer[0]);
@@ -144,16 +152,16 @@ module top();
         // Configure Layer 2: Hidden Layer with ReLU
         $display("\n--- Layer 2 Configuration ---");
         $display("Type: Hidden Layer (MatMul + Bias + ReLU)");
-        layer2_weights[0] = 1; layer2_weights[1] = 1; layer2_weights[2] = 1;
-        layer2_weights[3] = 1; layer2_weights[4] = 1; layer2_weights[5] = 1;
-        layer2_weights[6] = 1; layer2_weights[7] = 1; layer2_weights[8] = 1;
+        //layer2_weights[0] = 1; layer2_weights[1] = 1; layer2_weights[2] = 1;
+        //layer2_weights[3] = 1; layer2_weights[4] = 1; layer2_weights[5] = 1;
+        //layer2_weights[6] = 1; layer2_weights[7] = 1; layer2_weights[8] = 1;
         
         $display("Weights:");
         $display("[%0d %0d %0d]", layer2_weights[0], layer2_weights[1], layer2_weights[2]);
         $display("[%0d %0d %0d]", layer2_weights[3], layer2_weights[4], layer2_weights[5]);
         $display("[%0d %0d %0d]", layer2_weights[6], layer2_weights[7], layer2_weights[8]);
         
-        bias_layer[1] = 2;
+        bias_layer[1] = 0;
         vpu_ops_layer[1] = OP_RELU;
         scale_layer[1] = 256; // 1.0 in fixed point
         $display("Bias: %0d", bias_layer[1]);
@@ -162,20 +170,20 @@ module top();
         // Configure Layer 3: Output Layer with Sigmoid
         $display("\n--- Layer 3 Configuration ---");
         $display("Type: Output Layer (MatMul + Bias + Sigmoid)");
-        layer3_weights[0] = 1; layer3_weights[1] = 0; layer3_weights[2] = 1;
-        layer3_weights[3] = 0; layer3_weights[4] = 1; layer3_weights[5] = 0;
-        layer3_weights[6] = 1; layer3_weights[7] = 0; layer3_weights[8] = 1;
+        //layer3_weights[0] = 1; layer3_weights[1] = 0; layer3_weights[2] = 1;
+        //layer3_weights[3] = 0; layer3_weights[4] = 1; layer3_weights[5] = 0;
+        //layer3_weights[6] = 1; layer3_weights[7] = 0; layer3_weights[8] = 1;
         
         $display("Weights:");
         $display("[%0d %0d %0d]", layer3_weights[0], layer3_weights[1], layer3_weights[2]);
         $display("[%0d %0d %0d]", layer3_weights[3], layer3_weights[4], layer3_weights[5]);
         $display("[%0d %0d %0d]", layer3_weights[6], layer3_weights[7], layer3_weights[8]);
         
-        bias_layer[2] = 1;
-        vpu_ops_layer[2] = OP_SIGMOID;
+        bias_layer[2] = 0;
+        vpu_ops_layer[2] = OP_RELU;
         scale_layer[2] = 256; // 1.0 in fixed point
         $display("Bias: %0d", bias_layer[2]);
-        $display("Activation: Sigmoid");
+        $display("Activation: ReLU");
         
         // Reset
         $display("\n--- Starting Inference ---");
