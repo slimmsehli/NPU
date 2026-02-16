@@ -1,8 +1,12 @@
 obj_dir
 run.csh
 simdir
+simdir1
 synopsys_sim.setup
 ucli.tcl
+run2.csh
+run.csh
 venv
+signal.rc
 __pycache__
 model/__pycache__

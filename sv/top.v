@@ -3,10 +3,10 @@
 
 module top();
 
-    parameter NUM_LAYERS = 3;
+    parameter NUM_LAYERS = 2;
     parameter DATA_WIDTH = 8;
     parameter ACC_WIDTH = 32;
-    parameter FRAC_BITS = 8;
+    parameter FRAC_BITS = 0;
     parameter MATRIX_SIZE = 9;
     parameter CLK_PERIOD = 10;
     
@@ -60,9 +60,9 @@ module top();
       $readmemh("/global/scsg_eu_verif/slim/test_py/NPU/memories/weights_L1.hex", layer2_weights);
       $readmemh("/global/scsg_eu_verif/slim/test_py/NPU/memories/weights_L2.hex", layer3_weights);
       $readmemh("/global/scsg_eu_verif/slim/test_py/NPU/memories/inputs.hex", input_data);
-      bias_layer = {0, 0, 0};
-      vpu_ops_layer = {OP_RELU, OP_RELU, OP_RELU};
-      scale_layer = {1, 1, 1};
+      bias_layer = {0, 0};
+      vpu_ops_layer = {OP_RELU, OP_RELU};
+      scale_layer = {1, 1};
   	end
     
     // Weight update logic - simulates weight memory
@@ -78,11 +78,11 @@ module top();
                     weights[i] = layer2_weights[i];
                 end
             end
-            2: begin
+            /*2: begin
                 for (i = 0; i < MATRIX_SIZE; i = i + 1) begin
                     weights[i] = layer3_weights[i];
                 end
-            end
+            end*/
             default: begin
                 for (i = 0; i < MATRIX_SIZE; i = i + 1) begin
                     weights[i] = layer1_weights[i];
@@ -171,6 +171,7 @@ module top();
         $display("Activation: ReLU");
         
         // Configure Layer 3: Output Layer with Sigmoid
+        /*
         $display("\n--- Layer 3 Configuration ---");
         $display("Type: Output Layer (MatMul + Bias + Sigmoid)");
         //layer3_weights[0] = 1; layer3_weights[1] = 0; layer3_weights[2] = 1;
@@ -186,7 +187,7 @@ module top();
         //vpu_ops_layer[2] = OP_RELU;
         //scale_layer[2] = 256; // 1.0 in fixed point
         $display("Bias: %0d", bias_layer[2]);
-        $display("Activation: ReLU");
+        $display("Activation: ReLU");*/
         
         // Reset
         $display("\n--- Starting Inference ---");
@@ -216,7 +217,7 @@ module top();
         $display("[%0d %0d %0d]", output_data[6], output_data[7], output_data[8]);
         
         $display("\n--- Summary ---");
-        $display("Input → Layer1(ReLU) → Layer2(ReLU) → Layer3(Sigmoid) → Output");
+        $display("Input → Layer1(ReLU) → Layer2(ReLU) → Layer3(ReLU) → Output");
         $display("Total Layers Processed: %0d", NUM_LAYERS);
         $display("=========================================================\n");
         

@@ -53,8 +53,8 @@ module top();
     
     // memory load
     initial begin
-      $readmemh("weights.hex", matrix_a);
-      $readmemh("inputs.hex", matrix_b);
+      $readmemh("../memories/weights_L0.hex", matrix_a);
+      $readmemh("../memories/inputs.hex", matrix_b);
   	end
     
     // Instantiate DUT
