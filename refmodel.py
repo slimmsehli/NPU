@@ -159,41 +159,61 @@ def requantize(matrix, rows, cols, scale, zero_point=0, dtype='int8',
 
     return q.astype(out_dtype)
 
+############# Layer
+def layer( name, matA, matB, rows=3, cols=3, en_bias=0, en_scale=0, en_activation=0, en_quantize=0,
+           bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=0):
+  print(f"Layer [{name}] started ... ")
+  print(f"Layer [{name}] Input Matrix:")
+  print(matA)
+  print(f"Layer [{name}] Weights Matrix:")
+  print(matB)
+  
+  C = multiply(matA,matB)
+  if (DEBUG):
+      print(f"Layer [{name}] Post Multiplication:")
+      print(C)
+      
+  if en_bias:
+    C = bias(C, rows=3, cols=3, bias=bias_col)
+    if (DEBUG):
+      print(f"Layer [{name}] Post Bias:")
+      print(C)
+  
+  if en_scale:
+    C = scale(C, rows=3, cols=3, scale=scale_factor)
+    if (DEBUG):
+      print(f"Layer [{name}] Post Scale:")
+      print(C)
+  
+  if en_activation:
+    C =  activate(C, rows=3, cols=3),
+    if (DEBUG):
+      print(f"Layer [{name}] Post Activation:")
+      print(C)
+  
+  if en_quantize:
+    C = requantize(C, rows=3, cols=3, scale=1, zero_point=0, dtype=quantize_type,rounding='nearest', saturate=True)
+    if (DEBUG):
+      print(f"Layer [{name}] Post quantization:")
+      print(C)
+  
+  print(f"Layer [{name}] ended ... ")
+  return C
+
 ############# TEST
 
 # load matrices
-A = load_hex_matrix("./memories/inputs.hex", rows=3, cols=3)
-B = load_hex_matrix("./memories/weights_L0.hex", rows=3, cols=3)
-# multiply
-C = multiply(A,B)
-# add bias
-D = bias(C, rows=3, cols=3, bias=[0,0,0])
-# scale
-E = scale(D, rows=3, cols=3, scale=30)
-# activate
-F = activate(E, rows=3, cols=3)
-# quantize
-G = requantize(F, rows=3, cols=3, scale=1, zero_point=0, dtype='int8',rounding='nearest', saturate=True)
+inp = load_hex_matrix("./memories/inputs.hex", rows=3, cols=3)
+w1 = load_hex_matrix("./memories/weights_L0.hex", rows=3, cols=3)
+w2 = load_hex_matrix("./memories/weights_L1.hex", rows=3, cols=3)
+w3 = load_hex_matrix("./memories/weights_L2.hex", rows=3, cols=3)
 
-# quantize
+L1 = layer("L1", inp, w1, rows=3, cols=3, en_bias=0, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=1)
+L2 = layer("L2", L1, w2, rows=3, cols=3, en_bias=0, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=1)
+L3 = layer("L3", L2, w3, rows=3, cols=3, en_bias=0, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=1)
 
-print("Matrix A:")
-print(A)
 
-print("\nMatrix B:")
-print(B)
 
-print("\nA x B =")
-print(C)
 
-print("\n(AxB)+c =")
-print(D)
 
-print("\n Scale (AxB + c) =")
-print(E)
 
-print("\nRelu( Scale(AxB + c)) =")
-print(F)
-
-print("\n Quantize Relu( Scale(AxB + c)) =")
-print(G)
