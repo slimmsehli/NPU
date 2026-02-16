@@ -162,56 +162,110 @@ def requantize(matrix, rows, cols, scale, zero_point=0, dtype='int8',
 ############# Layer
 def layer( name, matA, matB, rows=3, cols=3, en_bias=0, en_scale=0, en_activation=0, en_quantize=0,
            bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=0):
-  print(f"Layer [{name}] started ... ")
-  print(f"Layer [{name}] Input Matrix:")
-  print(matA)
-  print(f"Layer [{name}] Weights Matrix:")
-  print(matB)
+  print(f"\n [INFO] - Layer [{name}] started ... ")
+  if (DEBUG):
+    print(f"\n [INFO] - Layer [{name}] Input Matrix:")
+    print(matA)
+    print(f"\n [INFO] - Layer [{name}] Weights Matrix:")
+    print(matB)
   
   C = multiply(matA,matB)
   if (DEBUG):
-      print(f"Layer [{name}] Post Multiplication:")
+      print(f"\n [INFO] - Layer [{name}] Post Multiplication:")
       print(C)
       
   if en_bias:
     C = bias(C, rows=3, cols=3, bias=bias_col)
     if (DEBUG):
-      print(f"Layer [{name}] Post Bias:")
+      print(f"\n [INFO] - Layer [{name}] Post Bias:")
       print(C)
   
   if en_scale:
     C = scale(C, rows=3, cols=3, scale=scale_factor)
     if (DEBUG):
-      print(f"Layer [{name}] Post Scale:")
+      print(f"\n [INFO] - Layer [{name}] Post Scale:")
       print(C)
   
   if en_activation:
     C =  activate(C, rows=3, cols=3),
     if (DEBUG):
-      print(f"Layer [{name}] Post Activation:")
+      print(f"\n [INFO] - Layer [{name}] Post Activation:")
       print(C)
   
   if en_quantize:
     C = requantize(C, rows=3, cols=3, scale=1, zero_point=0, dtype=quantize_type,rounding='nearest', saturate=True)
     if (DEBUG):
-      print(f"Layer [{name}] Post quantization:")
+      print(f"\n [INFO] - Layer [{name}] Post quantization:")
       print(C)
   
-  print(f"Layer [{name}] ended ... ")
+  print(f"\n [INFO] - Layer [{name}] ended ... ")
   return C
 
-############# TEST
+############# save output 
+
+import numpy as np
+
+def save_output(matrix, path, bits=16, signed=True):
+    """
+    Save a numeric matrix as integer HEX tokens (two's complement if signed=True).
+    Each row is written on a new line, tokens separated by spaces.
+    
+    Parameters:
+        matrix : array-like (2D). Can be float or int; will be rounded and cast.
+        path   : output file path (str)
+        bits   : 8, 16, or 32
+        signed : if True, two's complement signed range; else unsigned
+    """
+    mat = np.array(matrix, dtype=np.float64)  # work in float; we'll quantize
+    # Round to nearest integer before casting
+    mat_int = np.rint(mat).astype(np.int64)
+
+    if bits not in (8, 16, 32):
+        raise ValueError("bits must be one of: 8, 16, 32")
+
+    if signed:
+        minv = -(1 << (bits - 1))
+        maxv = (1 << (bits - 1)) - 1
+    else:
+        minv = 0
+        maxv = (1 << bits) - 1
+
+    # Saturate to valid range
+    mat_int = np.clip(mat_int, minv, maxv)
+
+    # Convert to two's complement representation if signed
+    mask = (1 << bits) - 1
+    mat_twos = (mat_int.astype(np.int64) & mask)
+
+    with open(path, "w") as f:
+        for r in range(mat_twos.shape[0]):
+            row_tokens = []
+            for v in mat_twos[r]:
+                row_tokens.append(format(int(v), f"0{bits//16}x"))
+            f.write("\n".join(row_tokens) + "\n")
+
+
+############# TEST for 3 layers model
+
+DEBUG = 0
 
 # load matrices
-inp = load_hex_matrix("./memories/inputs.hex", rows=3, cols=3)
-w1 = load_hex_matrix("./memories/weights_L0.hex", rows=3, cols=3)
-w2 = load_hex_matrix("./memories/weights_L1.hex", rows=3, cols=3)
-w3 = load_hex_matrix("./memories/weights_L2.hex", rows=3, cols=3)
+print(f"\n [INFO] - Loading input Matrix ... \n ")
+inp = load_hex_matrix("../memories/inputs.hex", rows=3, cols=3)
+print(f"\n [INFO] - Loading Weights Matrices L0,L1 and L2... \n ")
+w1 = load_hex_matrix("../memories/weights_L0.hex", rows=3, cols=3)
+w2 = load_hex_matrix("../memories/weights_L1.hex", rows=3, cols=3)
+w3 = load_hex_matrix("../memories/weights_L2.hex", rows=3, cols=3)
 
-L1 = layer("L1", inp, w1, rows=3, cols=3, en_bias=0, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=1)
-L2 = layer("L2", L1, w2, rows=3, cols=3, en_bias=0, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=1)
-L3 = layer("L3", L2, w3, rows=3, cols=3, en_bias=0, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=1)
+# run the 3 layers
+print(f"\n [INFO] - Running Layers... \n ")
+L1 = layer("L1", inp, w1, rows=3, cols=3, en_bias=0, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=DEBUG)
+L2 = layer("L2", L1, w2, rows=3, cols=3, en_bias=0, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=DEBUG)
+L3 = layer("L3", L2, w3, rows=3, cols=3, en_bias=0, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=DEBUG)
 
+# save output matrix to local file
+print(f"\n [INFO] - Saving output reference Matrix to ../memories/ref_output.hex ... \n ")
+save_output(matrix=L3, path="../memories/ref_output.hex", bits=16, signed=True)
 
 
 

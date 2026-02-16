@@ -60,6 +60,9 @@ module top();
       $readmemh("/global/scsg_eu_verif/slim/test_py/NPU/memories/weights_L1.hex", layer2_weights);
       $readmemh("/global/scsg_eu_verif/slim/test_py/NPU/memories/weights_L2.hex", layer3_weights);
       $readmemh("/global/scsg_eu_verif/slim/test_py/NPU/memories/inputs.hex", input_data);
+      bias_layer = {0, 0, 0};
+      vpu_ops_layer = {OP_RELU, OP_RELU, OP_RELU};
+      scale_layer = {1, 1, 1};
   	end
     
     // Weight update logic - simulates weight memory
@@ -143,9 +146,9 @@ module top();
         $display("[%0d %0d %0d]", layer1_weights[3], layer1_weights[4], layer1_weights[5]);
         $display("[%0d %0d %0d]", layer1_weights[6], layer1_weights[7], layer1_weights[8]);
         
-        bias_layer[0] = 0;
-        vpu_ops_layer[0] = OP_RELU;
-        scale_layer[0] = 256; // 1.0 in fixed point
+        //bias_layer[0] = 0;
+        //vpu_ops_layer[0] = OP_RELU;
+        //scale_layer[0] = 256; // 1.0 in fixed point
         $display("Bias: %0d", bias_layer[0]);
         $display("Activation: ReLU");
         
@@ -161,9 +164,9 @@ module top();
         $display("[%0d %0d %0d]", layer2_weights[3], layer2_weights[4], layer2_weights[5]);
         $display("[%0d %0d %0d]", layer2_weights[6], layer2_weights[7], layer2_weights[8]);
         
-        bias_layer[1] = 0;
-        vpu_ops_layer[1] = OP_RELU;
-        scale_layer[1] = 256; // 1.0 in fixed point
+        //bias_layer[1] = 0;
+        //vpu_ops_layer[1] = OP_RELU;
+        //scale_layer[1] = 256; // 1.0 in fixed point
         $display("Bias: %0d", bias_layer[1]);
         $display("Activation: ReLU");
         
@@ -179,9 +182,9 @@ module top();
         $display("[%0d %0d %0d]", layer3_weights[3], layer3_weights[4], layer3_weights[5]);
         $display("[%0d %0d %0d]", layer3_weights[6], layer3_weights[7], layer3_weights[8]);
         
-        bias_layer[2] = 0;
-        vpu_ops_layer[2] = OP_RELU;
-        scale_layer[2] = 256; // 1.0 in fixed point
+        //bias_layer[2] = 0;
+        //vpu_ops_layer[2] = OP_RELU;
+        //scale_layer[2] = 256; // 1.0 in fixed point
         $display("Bias: %0d", bias_layer[2]);
         $display("Activation: ReLU");
         
