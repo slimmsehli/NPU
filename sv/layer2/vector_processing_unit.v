@@ -17,6 +17,9 @@ module vector_processing_unit #(
     
     // Control signals
     input wire [2:0] operation,     // Select operation type
+    input wire en_bias,
+    input wire en_activation,
+    input wire en_scale,
     input wire [ACC_WIDTH-1:0] bias_value,  // For bias addition
     input wire [ACC_WIDTH-1:0] scale_factor, // For scaling/normalization
     
@@ -60,7 +63,33 @@ module vector_processing_unit #(
             // Load input array
             for (i=0; i<LENGTH;i++) begin
         			in_array[i] = data_in[i];	
-        		end           
+        		end    
+        		
+        		
+        		// step 1 
+        		if (en_bias) begin
+        			for (i = 0; i < 9; i = i + 1) begin
+                  out_array[i] = in_array[i] + bias_value;
+              end
+        		end
+        		
+        		// step 2
+        		if (en_activation) begin
+        			for (i = 0; i < 9; i = i + 1) begin
+                  out_array[i] = (signed_in[i] < 0) ? 0 : out_array[i];
+              end
+        		end
+        		
+        		// step 3
+        		if (en_scale) begin
+        			for (i = 0; i < 9; i = i + 1) begin
+                  //out_array[i] = (out_array[i] * scale_factor) >> FRAC_BITS;
+                  out_array[i] = out_array[i] >> scale_factor;
+              end
+        		end
+        		
+        		
+        		 /*      
             case (operation)
                 OP_PASSTHROUGH: begin
                     // Direct pass-through
@@ -93,7 +122,7 @@ module vector_processing_unit #(
                 OP_MAX_POOL: begin
                     // 2x2 Max pooling (4 outputs, rest zeros)
                     // Pool regions: [0,1,3,4], [1,2,4,5], [3,4,6,7], [4,5,7,8]
-                    /*out_array[0] = max4(in_array[0], in_array[1], in_array[3], in_array[4]);
+                    out_array[0] = max4(in_array[0], in_array[1], in_array[3], in_array[4]);
                     out_array[1] = max4(in_array[1], in_array[2], in_array[4], in_array[5]);
                     out_array[2] = 0;
                     out_array[3] = max4(in_array[3], in_array[4], in_array[6], in_array[7]);
@@ -101,12 +130,12 @@ module vector_processing_unit #(
                     out_array[5] = 0;
                     out_array[6] = 0;
                     out_array[7] = 0;
-                    out_array[8] = 0;*/
+                    out_array[8] = 0;
                 end
                 
                 OP_AVG_POOL: begin
                     // 2x2 Average pooling (4 outputs, rest zeros)
-                    /*out_array[0] = (in_array[0] + in_array[1] + in_array[3] + in_array[4]) >> 2;
+                    out_array[0] = (in_array[0] + in_array[1] + in_array[3] + in_array[4]) >> 2;
                     out_array[1] = (in_array[1] + in_array[2] + in_array[4] + in_array[5]) >> 2;
                     out_array[2] = 0;
                     out_array[3] = (in_array[3] + in_array[4] + in_array[6] + in_array[7]) >> 2;
@@ -114,7 +143,7 @@ module vector_processing_unit #(
                     out_array[5] = 0;
                     out_array[6] = 0;
                     out_array[7] = 0;
-                    out_array[8] = 0;*/
+                    out_array[8] = 0;
                 end
                 
                 OP_SIGMOID: begin
@@ -137,11 +166,11 @@ module vector_processing_unit #(
                         out_array[i] = in_array[i];
                     end
                 end
-            endcase
+            endcase*/
             
             // Write outputs
             for (i = 0; i < 9; i = i + 1) begin
-            	data_out[i] <= out_array[i];
+            	data_out[i] = out_array[i];
             end
             
             valid_out <= 1;

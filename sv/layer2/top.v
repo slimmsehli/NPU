@@ -19,6 +19,7 @@ module top;
     wire [ACC_WIDTH-1:0] result [0:LAYERS-1][0:LENGTH-1];
     wire [LAYERS-1:0] controller_done;
     wire [LAYERS-1:0] vpu_valid;
+    wire npu_done;
 
 
 	// ######################################
@@ -50,7 +51,9 @@ module top;
 			rst = 0;
 			#(CLK_PERIOD*5);
 			start_p = 1;
-			repeat (50) @(posedge clk);
+			repeat (2) @(posedge clk);
+			//@(posedge npu_done);
+			repeat (100) @(posedge clk);
 			$finish;
 		end
 	
@@ -70,13 +73,13 @@ module top;
         // Display raw results
         $display("\n\n--- Output Matrix ---\n");
         for (integer i=1; i<LENGTH+1;i++) begin
-        	$write(" %0d ", raw_result[2][i-1]);
+        	$write(" %0d ", result[2][i-1]);
         	if (i%3==0) $write("\n");
         end
         
         fd = $fopen("../memories/npu_output.hex", "w");
 				for (integer i = 0; i < LENGTH; i++) begin
-					$fdisplay(fd, "%01h", raw_result[2][i]);
+					$fdisplay(fd, "%01h", result[2][i]);
 				end
 				$fclose(fd);        
         
@@ -106,7 +109,8 @@ module top;
 				.raw_result(raw_result), //output [ACC_WIDTH-1:0] raw_result [0:LAYERS-1][0:LENGTH-1],
 				.result(result), //output [ACC_WIDTH-1:0] result [0:LAYERS-1][0:LENGTH-1],
 				.controller_done(controller_done), //output [LAYERS-1:0] controller_done,
-				.vpu_valid(vpu_valid) //output [LAYERS-1:0] vpu_valid
+				.vpu_valid(vpu_valid), //output [LAYERS-1:0] vpu_valid
+				.done(npu_done)
 		);  
 
 endmodule

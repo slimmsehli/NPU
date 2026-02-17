@@ -18,6 +18,9 @@ module npu_layer #(
     // VPU control
     input wire vpu_enable,
     input wire [2:0] vpu_operation,
+    input wire en_bias,
+    input wire en_activation,
+    input wire en_scale,
     input wire [ACC_WIDTH-1:0] bias_value,
     input wire [ACC_WIDTH-1:0] scale_factor,
     
@@ -31,7 +34,7 @@ module npu_layer #(
     output wire vpu_valid
 );
 		reg vpu_enable_internal, en_vpu;
-		always @(posedge start) begin
+		/*always @(posedge start) begin
 			vpu_enable_internal = vpu_enable;
 		end
 		always @(posedge controller_done) begin
@@ -39,7 +42,9 @@ module npu_layer #(
 		end
 		always @(negedge rst) begin
 			vpu_enable_internal = 1'b0;
-		end
+		end*/
+		
+		assign en_vpu = controller_done & vpu_enable;
 		
 
     // Internal signals
@@ -100,6 +105,9 @@ module npu_layer #(
         .enable(en_vpu),
         .data_in(raw_result),
         .operation(vpu_operation),
+        .en_bias(en_bias),
+    		.en_activation(en_activation),
+    		.en_scale(en_scale),
         .bias_value(bias_value),
         .scale_factor(scale_factor),
         .data_out(result),
