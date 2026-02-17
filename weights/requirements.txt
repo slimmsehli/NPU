@@ -1,0 +1,10 @@
+pip install transformers torch huggingface_hub
+
+
+export HF_HOME=/home/slim/NPU/weights/huggingfcae_home
+export HF_DATASETS_CACHE=/home/slim/NPU/weights/huggingfcae_home/datasets
+export HF_HUB_CACHE=/home/slim/NPU/weights/huggingfcae_home/hubcache
+
+
+
+

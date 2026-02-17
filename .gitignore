@@ -10,3 +10,7 @@ venv
 signal.rc
 __pycache__
 model/__pycache__
+weights/huggingfcae_home
+weights/weights_bin
+weights/weights_int8
+weights/weights_hex
