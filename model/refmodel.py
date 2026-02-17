@@ -175,25 +175,25 @@ def layer( name, matA, matB, rows=3, cols=3, en_bias=0, en_scale=0, en_activatio
       print(C)
       
   if en_bias:
-    C = bias(C, rows=3, cols=3, bias=bias_col)
+    C = bias(C, rows=rows, cols=cols, bias=bias_col)
     if (DEBUG):
       print(f"\n [INFO] - Layer [{name}] Post Bias:")
       print(C)
   
   if en_scale:
-    C = scale(C, rows=3, cols=3, scale=scale_factor)
+    C = scale(C, rows=rows, cols=cols, scale=scale_factor)
     if (DEBUG):
       print(f"\n [INFO] - Layer [{name}] Post Scale:")
       print(C)
   
   if en_activation:
-    C =  activate(C, rows=3, cols=3),
+    C =  activate(C, rows=rows, cols=cols),
     if (DEBUG):
       print(f"\n [INFO] - Layer [{name}] Post Activation:")
       print(C)
   
   if en_quantize:
-    C = requantize(C, rows=3, cols=3, scale=1, zero_point=0, dtype=quantize_type,rounding='nearest', saturate=True)
+    C = requantize(C, rows=rows, cols=cols, scale=1, zero_point=0, dtype=quantize_type,rounding='nearest', saturate=True)
     if (DEBUG):
       print(f"\n [INFO] - Layer [{name}] Post quantization:")
       print(C)
@@ -246,26 +246,28 @@ def save_output(matrix, path, bits=16, signed=True):
 
 
 ############# TEST for 3 layers model
-
+cols = 20
+rows = 20
 DEBUG = 0
+output_file = "output.hex" #"../memories/ref_output.hex"
 
 # load matrices
 print(f"\n [INFO] - Loading input Matrix ... \n ")
-inp = load_hex_matrix("../memories/inputs.hex", rows=3, cols=3)
+inp = load_hex_matrix("A.hex", rows=rows, cols=cols) #"../memories/inputs.hex"
 print(f"\n [INFO] - Loading Weights Matrices L0,L1 and L2... \n ")
-w1 = load_hex_matrix("../memories/weights_L0.hex", rows=3, cols=3)
-w2 = load_hex_matrix("../memories/weights_L1.hex", rows=3, cols=3)
-w3 = load_hex_matrix("../memories/weights_L2.hex", rows=3, cols=3)
+w1 = load_hex_matrix("B.hex", rows=rows, cols=cols) #"../memories/weights_L0.hex"
+w2 = load_hex_matrix("B.hex", rows=rows, cols=cols) #"../memories/weights_L1.hex"
+w3 = load_hex_matrix("B.hex", rows=rows, cols=cols) #"../memories/weights_L2.hex"
 
 # run the 3 layers
 print(f"\n [INFO] - Running Layers... \n ")
-L1 = layer("L1", inp, w1, rows=3, cols=3, en_bias=0, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=DEBUG)
-L2 = layer("L2", L1, w2, rows=3, cols=3, en_bias=0, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=DEBUG)
-L3 = layer("L3", L2, w3, rows=3, cols=3, en_bias=0, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=DEBUG)
+L1 = layer("L1", inp, w1, rows=rows, cols=cols, en_bias=0, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=DEBUG)
+L2 = layer("L2", L1, w2, rows=rows, cols=cols, en_bias=0, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=DEBUG)
+L3 = layer("L3", L2, w3, rows=rows, cols=cols, en_bias=0, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0,0,0], scale_factor=1, quantize_type="int8", DEBUG=DEBUG)
 
 # save output matrix to local file
-print(f"\n [INFO] - Saving output reference Matrix to ../memories/ref_output.hex ... \n ")
-save_output(matrix=L3, path="../memories/ref_output.hex", bits=16, signed=True)
+print(f"\n [INFO] - Saving output reference Matrix to {output_file} ... \n ")
+save_output(matrix=L3, path=output_file, bits=16, signed=True)
 
 
 
