@@ -97,6 +97,8 @@ if __name__ == "__main__":
 
 ### usage
 
+#python genmat.py --n 20 --seed 1 --out A.hex --min 0 --max 20
+
 #python make_int8_hex_mats.py --n 1024 --seedA 1 --seedB 2 --outA A.hex --outB B.hex
 
 # 2) Use one seed; the second matrix seed is derived automatically

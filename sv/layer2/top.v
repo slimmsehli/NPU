@@ -1,9 +1,11 @@
 module top;
+		parameter cols = 3;
+		parameter rows = 3;
 		parameter DATA_WIDTH = 8;
 		parameter ACC_WIDTH = 32;
 		parameter FRAC_BITS = 8;
 		parameter CLK_PERIOD = 10;
-		parameter LENGTH = 9;
+		parameter LENGTH = cols*rows;
 		parameter LAYERS = 3;
 		
 		reg clk;
@@ -32,9 +34,9 @@ module top;
 	// memory load
     initial begin
       $readmemh("../memories/inputs.hex", mat_inputs);
-      $readmemh("../memories/weights_L0.hex", mat_weights[0]);
-      $readmemh("../memories/weights_L1.hex", mat_weights[1]);
-      $readmemh("../memories/weights_L2.hex", mat_weights[2]);
+      $readmemh("../memories/w0.hex", mat_weights[0]);
+      $readmemh("../memories/w1.hex", mat_weights[1]);
+      $readmemh("../memories/w2.hex", mat_weights[2]);
   	end
 	
 	// ######################################
@@ -67,14 +69,14 @@ module top;
         // Display raw results
         $display("\n\n--- Input Matrix ---\n");
         for (integer i=1; i<LENGTH+1;i++) begin
-        	$write(" %0d ", mat_inputs[i-1]);
-        	if (i%3==0) $write("\n");
+        	$write(" %0h ", mat_inputs[i-1]);
+        	if (i%cols==0) $write("\n");
         end
         // Display raw results
         $display("\n\n--- Output Matrix ---\n");
         for (integer i=1; i<LENGTH+1;i++) begin
-        	$write(" %0d ", result[2][i-1]);
-        	if (i%3==0) $write("\n");
+        	$write(" %0h ", result[2][i-1]);
+        	if (i%cols==0) $write("\n");
         end
         
         fd = $fopen("../memories/npu_output.hex", "w");
