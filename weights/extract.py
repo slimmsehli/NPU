@@ -15,7 +15,7 @@ if (step1==1):
 	model_name = "openai-community/gpt2" #"bert-base-uncased"  # swap for any HF model
 
 	tokenizer = AutoTokenizer.from_pretrained(model_name)
-	model = AutoModel.from_pretrained(model_name, torch_dtype=torch.float8)
+	model = AutoModel.from_pretrained(model_name, torch_dtype=torch.float16)
 	model.eval()
 
 	# ── 2. Inspect layers ────────────────────────────────────────────────────────

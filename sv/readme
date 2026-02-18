@@ -1,0 +1,85 @@
+
+
+
+
+need to add 
+
+- softmax
+	using exp() bia LUT and linear interpolation fixed point freindly version
+	accumulate the sum and divide using the LUT
+	fixed point Q8.8 Q4.12
+- Layer normalization
+	pass 1
+		sum and sum of squares across the vector
+		mean 1/sqrt(variance +epsilon) sqrt LUT
+	pass 2
+		normalize each element and then apply lambda and betta
+- Attention enginer
+	...
+- GELU Approximation
+	Linear LUT with 64-128 SEGMENTS 
+
+weights: INT8 or INT16
+Accumulators INT32
+Attention scores: Fixed point softmax input at INT16
+
+
+
+														Transformer core
+
+	-------------------------------------------------------------------------
+	|																																				|
+	|	QKV Porjection (MAC) ---> Attention Engine ----> FFN Block (MAC+VPU)  |
+	|																	|																			|
+	|																	|																			|
+	|																	|																			|
+	|	 													 Softmax unit																|
+	|														Layer Nomr Unit															|
+	|																																				|
+	-------------------------------------------------------------------------
+
+
+Summary Table for the current implementation
+Functionality 												You Have												Status
+Matrix Multiply(projections, FFN)			MAC array												✓ Done
+Bias Add															VPU															✓ Done
+Output Scaling												VPU															✓ Done
+ReLU																	VPU															✓ Done (wrong activation)
+GELU																	—✗ 															Missing
+Softmax																—✗ 															Missing (hardest)
+Layer Normalization										Partial (γ/β only)							✗ Needs stats compute
+Residual Add													—✗ 															Missing
+Transpose/K addressing								—✗ 															Missing
+Attention score buffer								—✗ 															Missing
+KV Cache															—✗ 															Missing (defer to later)
+
+Next step
+
+Step 1 — Residual Add into your VPU. It's a one-line change almost, and unblocks correct transformer dataflow immediately.
+Step 2 — GELU replacement for ReLU. Implement as a piecewise linear LUT in BRAM. You can swap it into your existing activation slot in the VPU.
+Step 3 — Layer Normalization. Build as a two-pass unit: first pass accumulates mean and variance across the vector, second pass normalizes and applies γ/β using your existing scale/bias hardware.
+Step 4 — Transpose addressing for K matrix. No new compute, just address generation logic so your MAC array can consume K in transposed order.
+Step 5 — Attention score buffer. A BRAM block to hold the [seq_len × seq_len] intermediate matrix between QKᵀ and the softmax.
+Step 6 — Softmax Unit. The most complex addition. Build it last so you can test everything else independently first.
+
+
+Embedding Fetch Unit
+Parameters:
+  EMBEDDING_DIM  = 768
+  ELEM_WIDTH     = 8        // INT8
+  DDR_BASE_WTE   = address of wte in DDR
+  DDR_BASE_WPE   = address of wpe in BRAM or DDR
+
+Ports:
+  input  [15:0]   token_ids   [SEQ_LEN]   // input token sequence
+  input  [9:0]    seq_len                 // actual sequence length
+  output [7:0]    embed_out   [SEQ_LEN][768]  // to activation buffer
+  input           start
+  output          done
+
+
+
+
+
+
+
