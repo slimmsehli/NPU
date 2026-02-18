@@ -7,3 +7,20 @@ bin2hex.py : to convert weights from binary to hex format
 
 
 visualize : https://bbycroft.net/llm
+
+
+transformer code
+
+Every function maps one-to-one to an RTL block. The structure is intentional:
+
+hw_embedding_lookup → BRAM address decoder
+hw_elementwise_add → Residual Add unit
+hw_layernorm → LayerNorm unit (two-pass, stats then normalize)
+hw_vpu_bias → VPU bias add
+hw_mac_matmul → MAC array + VPU bias
+hw_split_qkv → address generation only, no compute unit needed
+hw_attention_scores → MAC array + VPU scale
+hw_causal_mask → VPU add with mask BRAM
+hw_softmax → Softmax unit
+hw_attention_output → MAC array
+hw_gelu → VPU GELU LUT

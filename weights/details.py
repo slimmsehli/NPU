@@ -33,6 +33,8 @@ for i, (name, module) in enumerate(model.named_modules()):
         operation = module.__class__.__name__
         
         print(f"[{i:<4}] {name:<50} {operation:<20} {shape:<20} {dtype}")
+    if i > 20:
+      break
 
 print("-" * 115)
 print(f"Total parameters: {total_params:,}")
