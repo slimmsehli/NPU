@@ -1,0 +1,9 @@
+
+
+
+main.py : to download the model from hugging face
+details.py : to show the complete details of the model
+bin2hex.py : to convert weights from binary to hex format
+
+
+visualize : https://bbycroft.net/llm

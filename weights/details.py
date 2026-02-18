@@ -20,10 +20,10 @@ print(f"Transformer blocks   : {num_blocks}")
 # ── Print a clean numbered list ──
 for i, (name, param) in enumerate(all_params):
     print(f"[{i:03d}] {name:60s} {list(param.shape)}")
-```
 
+"""
 This will print something like:
-```
+
 Total weight tensors : 199
 Transformer blocks   : 12
 
@@ -31,7 +31,7 @@ Transformer blocks   : 12
 [001] embeddings.position_embeddings.weight      [512, 768]
 [002] encoder.layer.0.attention.self.query.weight [768, 768]
 ...
-
+"""
 #######################
 #### 4. Dimensions of each layer
 #######################
@@ -65,10 +65,10 @@ print("-" * 95)
 for name, module in model.named_modules():
     if name:  # skip the root
         print(f"{name:<65} {type(module).__name__}")
-```
 
+"""
 This will show you something like:
-```
+
 embeddings.word_embeddings                      Embedding
 embeddings.LayerNorm                            LayerNorm
 encoder.layer.0.attention.self.query            Linear
@@ -80,6 +80,6 @@ encoder.layer.0.intermediate.dense              Linear        ← GELU activatio
 encoder.layer.0.output.dense                    Linear
 encoder.layer.0.output.LayerNorm                LayerNorm
 ...
-
+"""
 
 

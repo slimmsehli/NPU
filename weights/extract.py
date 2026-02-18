@@ -12,10 +12,10 @@ step2 = 1
 ############################################################
 if (step1==1):
 	# ── 1. Download a model ──────────────────────────────────────────────────────
-	model_name = "bert-base-uncased"  # swap for any HF model
+	model_name = "openai-community/gpt2" #"bert-base-uncased"  # swap for any HF model
 
 	tokenizer = AutoTokenizer.from_pretrained(model_name)
-	model = AutoModel.from_pretrained(model_name, torch_dtype=torch.float32)
+	model = AutoModel.from_pretrained(model_name, torch_dtype=torch.float8)
 	model.eval()
 
 	# ── 2. Inspect layers ────────────────────────────────────────────────────────
@@ -98,7 +98,7 @@ print("Saved INT8 quantized weights")
 
 # Reload and verify a specific layer
 data = np.load("model_weights.npz")
-layer = data["encoder.layer.0.attention.self.query.weight"]
+layer = data["wte.weight"] #"encoder.layer.0.attention.self.query.weight"]
 print(f"Query weight shape: {layer.shape}")
 print(f"Sample values: {layer[0, :5]}")
 
