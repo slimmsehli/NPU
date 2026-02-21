@@ -15,6 +15,7 @@ module top;
     // input matrices
     reg [DATA_WIDTH-1:0] mat_inputs [0:LENGTH-1];
     reg [DATA_WIDTH-1:0] mat_weights [0:LAYERS-1][0:LENGTH-1];
+    reg [DATA_WIDTH-1:0] mat_weights_temp [0:LENGTH-1];
     
     // output
     wire [ACC_WIDTH-1:0] raw_result [0:LAYERS-1][0:LENGTH-1];
@@ -30,13 +31,35 @@ module top;
 		  clk = 0;
 		  forever #(CLK_PERIOD/2) clk = ~clk;
 	end
-	
+	string weight_path;
 	// memory load
     initial begin
-      $readmemh("../memories/inputs.hex", mat_inputs);
-      $readmemh("../memories/w0.hex", mat_weights[0]);
-      $readmemh("../memories/w1.hex", mat_weights[1]);
-      $readmemh("../memories/w2.hex", mat_weights[2]);
+    	// dump signals 
+    	$dumpfile("waves.vcd");
+      $dumpvars(0, top);
+    	// checl memories path 
+      if ($value$plusargs("WEIGHT_PATH=%s", weight_path)) begin
+        $display(" found memory path on command line : %s", weight_path);
+    	end
+    	else begin
+    		$fatal(" no memory path was given !!! ");
+    	end
+    	
+    	// load memories
+      $readmemh({weight_path, "/inputs.hex"}, mat_inputs);
+      $readmemh({weight_path, "/w0.hex"}, mat_weights_temp);
+      for (integer i=0; i>LENGTH; i++) begin
+      	mat_weights[0][i] = mat_weights_temp[i];
+      end
+      $readmemh({weight_path, "/w1.hex"}, mat_weights_temp);
+      for (integer i=0; i>LENGTH; i++) begin
+      	mat_weights[1][i] = mat_weights_temp[i];
+      end
+      $readmemh({weight_path, "/w2.hex"}, mat_weights_temp);
+      for (integer i=0; i>LENGTH; i++) begin
+      	mat_weights[2][i] = mat_weights_temp[i];
+      end
+      
   	end
 	
 	// ######################################
@@ -66,6 +89,13 @@ module top;
         $display("\n=======================================================");
         $display("All tests completed!");
         $display("=======================================================");
+        // checl memories path 
+		    if ($value$plusargs("WEIGHT_PATH=%s", weight_path)) begin
+		      $display(" found memory path on command line : %s", weight_path);
+		  	end
+		  	else begin
+		  		$fatal(" no memory path was given !!! ");
+		  	end
         // Display raw results
         $display("\n\n--- Input Matrix ---\n");
         for (integer i=1; i<LENGTH+1;i++) begin
@@ -75,13 +105,13 @@ module top;
         // Display raw results
         $display("\n\n--- Output Matrix ---\n");
         for (integer i=1; i<LENGTH+1;i++) begin
-        	$write(" %0h ", result[2][i-1]);
+        	$write(" %0h ", raw_result[2][i-1]);
         	if (i%cols==0) $write("\n");
         end
         
-        fd = $fopen("../memories/npu_output.hex", "w");
+        fd = $fopen({weight_path, "/npu_output.hex"}, "w");
 				for (integer i = 0; i < LENGTH; i++) begin
-					$fdisplay(fd, "%01h", result[2][i]);
+					$fdisplay(fd, "%01h", raw_result[2][i]);
 				end
 				$fclose(fd);        
         

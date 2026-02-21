@@ -111,9 +111,12 @@ module npu_top
     			1: begin // load matrices 
     				if (current_layer==0)
 				    		matrix_a = mat_inputs;
-			    	else
-							matrix_a = result[current_layer-1];
-							
+			    	else begin //@NOTE fix from directly assiging an array to another 
+							//matrix_a = result[current_layer-1];
+							for (integer i=0; i<LENGTH; i++) begin
+								matrix_a[i] = result[current_layer-1][i];
+							end
+						end
 							matrix_b = mat_weights[current_layer];
 						status = 2;
     			end
@@ -149,8 +152,13 @@ module npu_top
 				    	current_layer = i;
 				    	if (i==0)
 				    		matrix_a = mat_inputs;
-				    	else
-								matrix_a = result[current_layer-1];
+				    	else begin //@NOTE fix from directly assiging an array to another 
+				    		//matrix_a = result[current_layer-1];
+				    		for (integer i=0; i<LENGTH; i++) begin
+								matrix_a[i] = result[current_layer-1][i];
+								end
+							end
+								
 								
 								matrix_b = mat_weights[current_layer];
 								/*$display("\n--- Layer 3 ");

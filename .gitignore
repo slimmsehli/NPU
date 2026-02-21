@@ -15,3 +15,6 @@ weights/weights_bin
 weights/weights_int8
 weights/weights_hex
 weights/model_weights.npz
+*.log
+simdir
+*.vcd
