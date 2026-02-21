@@ -2,20 +2,21 @@ import numpy as np
 import argparse
 ############# Load matrix layer
 
-def load_hex_matrix(path, rows, cols):
+def load_hex_matrix(path, rows, cols, DEBUG=0):
+    if DEBUG: print(f"Loading matrix from path : {path}, cols={cols}, rows={rows}")
     tokens = []
     with open(path, 'r') as f:
         for line in f:
+            #if DEBUG: print(f"line : {line}")
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
             # split by space or comma
             parts = line.replace(",", " ").split()
             tokens.extend(parts)
-
+    if DEBUG: print(f"tokens : {tokens}")
     if len(tokens) < rows * cols:
         raise ValueError("Not enough hex values in file.")
-
     values = []
     for t in tokens[:rows*cols]:
         # remove 0x if present
@@ -25,8 +26,8 @@ def load_hex_matrix(path, rows, cols):
         if val >= 0x8000:   # convert from two's complement
             val -= 0x10000
         values.append(val)
-
-    return np.array(values, dtype=np.int32).reshape(rows, cols)
+    if DEBUG: print(f"values : {values}")
+    return np.array(values, dtype=np.int8).reshape(rows, cols)
 
 ############# Multiply Layer
 
@@ -98,7 +99,7 @@ def scale(matrix, rows, cols, scale):
     mat = np.array(matrix, dtype=np.float32).reshape(rows, cols)
 
     # apply scaling
-    scaled = mat * scale
+    scaled = mat * (1/scale)
 
     return np.array(scaled, dtype=np.int32)
 
@@ -242,38 +243,51 @@ def save_output(matrix, path, bits=16, signed=True):
             row_tokens = []
             for v in mat_twos[r]:
                 row_tokens.append(format(int(v), f"0{bits//16}x"))
+                #row_tokens.append(format(int(v), f"0{bits//16}x"))
             f.write("\n".join(row_tokens) + "\n")
 
 
 ############# TEST for 3 layers model
 def main():
 	parser = argparse.ArgumentParser(description="generate a matrix in NxN format")
-	parser.add_argument("--n", type=int, required=False, help="")
+	parser.add_argument("--layers", type=int, default=3, help="")
 	parser.add_argument("--debug", type=str, default="0", help="")
 	parser.add_argument("--cols", type=int, default=3, help="")
 	parser.add_argument("--rows", type=int, default=3, help="")
+	parser.add_argument("--mempath", type=str, required=True, default="../memories", help="")
 	args = parser.parse_args()
+	layers = args.layers
+	mempath = args.mempath
 	DEBUG = args.debug
 	cols = args.cols
 	rows = args.rows
 	# load matrices
-	output_file = "../memories/ref_output.hex"
+	ww = []
+	output_file = f"{mempath}/ref_output.hex"
 	print(f"\n [INFO] - Loading input Matrix ... \n ")
-	inp = load_hex_matrix("../memories/inputs.hex", rows=rows, cols=cols) #
-	print(f"\n [INFO] - Loading Weights Matrices L0,L1 and L2... \n ")
-	w1 = load_hex_matrix("../memories/w0.hex", rows=rows, cols=cols)
-	w2 = load_hex_matrix("../memories/w1.hex", rows=rows, cols=cols) 
-	w3 = load_hex_matrix("../memories/w2.hex", rows=rows, cols=cols) #
-
+	inp = load_hex_matrix(f"{mempath}/inputs.hex", rows=rows, cols=cols, DEBUG=0) #
+	print(inp)
+	print(f"\n [INFO] - Loading Weights Matrices ... \n ")
+	for i in range(layers):
+		path = f"{mempath}/w{i}.hex"
+		matrix = load_hex_matrix(path, rows=rows, cols=cols, DEBUG=0)
+		print (f"Loaded matrix {i} from {path} :")
+		print(matrix)
+		ww.append(matrix)
+	
+	#w0 = load_hex_matrix(f"{mempath}/w0.hex", rows=rows, cols=cols, DEBUG=0)
+	#w1 = load_hex_matrix(f"{mempath}/w1.hex", rows=rows, cols=cols, DEBUG=0) 
+	#w2 = load_hex_matrix(f"{mempath}/w2.hex", rows=rows, cols=cols, DEBUG=0) #
+	scale_factor = 2
 	# run the 3 layers
 	print(f"\n [INFO] - Running Layers... \n ")
-	L1 = layer("L1", inp, w1, rows=rows, cols=cols, en_bias=1, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0]*cols, scale_factor=0.5, quantize_type="int8", DEBUG=DEBUG)
-	L2 = layer("L2", L1, w2, rows=rows, cols=cols, en_bias=1, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0]*cols, scale_factor=0.5, quantize_type="int8", DEBUG=DEBUG)
-	L3 = layer("L3", L2, w3, rows=rows, cols=cols, en_bias=1, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0]*cols, scale_factor=0.5, quantize_type="int8", DEBUG=DEBUG)
+	L1 = layer("L1", inp, ww[0], rows=rows, cols=cols, en_bias=1, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0]*cols, scale_factor=scale_factor, quantize_type="int8", DEBUG=DEBUG)
+	L2 = layer("L2", L1, ww[1], rows=rows, cols=cols, en_bias=1, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0]*cols, scale_factor=scale_factor, quantize_type="int8", DEBUG=DEBUG)
+	L3 = layer("L3", L2, ww[2], rows=rows, cols=cols, en_bias=1, en_scale=1, en_activation=1, en_quantize=1, bias_col=[0]*cols, scale_factor=scale_factor, quantize_type="int8", DEBUG=DEBUG)
 
 	# save output matrix to local file
 	print(f"\n [INFO] - Saving output reference Matrix to {output_file} ... \n ")
-	save_output(matrix=L3, path=output_file, bits=16, signed=True)
+	save_output(matrix=L3, path=output_file, bits=8, signed=True)
 
 if __name__ == "__main__":
     main()

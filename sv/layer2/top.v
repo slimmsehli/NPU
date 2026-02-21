@@ -46,26 +46,40 @@ module top;
     	end
     	
     	// load memories
+    	@(posedge clk);
       $readmemh({weight_path, "/inputs.hex"}, mat_inputs);
+
       $readmemh({weight_path, "/w0.hex"}, mat_weights_temp);
-      for (integer i=0; i>LENGTH; i++) begin
+      @(posedge clk);
+      for (integer i=0; i<LENGTH; i++) begin
       	mat_weights[0][i] = mat_weights_temp[i];
       end
+      @(posedge clk);
       $readmemh({weight_path, "/w1.hex"}, mat_weights_temp);
-      for (integer i=0; i>LENGTH; i++) begin
+      for (integer i=0; i<LENGTH; i++) begin
       	mat_weights[1][i] = mat_weights_temp[i];
       end
+      @(posedge clk);
       $readmemh({weight_path, "/w2.hex"}, mat_weights_temp);
-      for (integer i=0; i>LENGTH; i++) begin
+      for (integer i=0; i<LENGTH; i++) begin
       	mat_weights[2][i] = mat_weights_temp[i];
       end
-      
-  	end
-	
-	// ######################################
-    // Test procedure
-		initial begin
-			$display("=======================================================");
+      // display Matrices
+      // Display input  matrix
+        $display("\n\n--- Input Matrix ---\n");
+        for (integer i=1; i<LENGTH+1;i++) begin
+        	$write(" %0h ", mat_inputs[i-1]);
+        	if (i%cols==0) $write("\n");
+        end
+        // Display weight matrices
+        for (integer layer=0; layer<LAYERS; layer++) begin
+        	$display("\n\n--- Weight Matrix Layer %d ---\n", layer);
+		      for (integer i=1; i<LENGTH+1;i++) begin
+		      	$write(" %0h ", mat_weights[layer][i-1]);
+		      	if (i%cols==0) $write("\n");
+		      end
+        end
+      $display("=======================================================");
 			$display("Systolic Array with Vector Processing Unit - Test Suite");
 			$display("=======================================================\n");
 			start_p = 0;
@@ -77,10 +91,12 @@ module top;
 			#(CLK_PERIOD*5);
 			start_p = 1;
 			repeat (2) @(posedge clk);
-			//@(posedge npu_done);
-			repeat (100) @(posedge clk);
+			start_p = 0;
+			@(posedge npu_done);
+			repeat (5) @(posedge clk);
+			//repeat (100) @(posedge clk);
 			$finish;
-		end
+  	end
 	
 	// ######################################
     // Final loop
@@ -96,22 +112,17 @@ module top;
 		  	else begin
 		  		$fatal(" no memory path was given !!! ");
 		  	end
-        // Display raw results
-        $display("\n\n--- Input Matrix ---\n");
-        for (integer i=1; i<LENGTH+1;i++) begin
-        	$write(" %0h ", mat_inputs[i-1]);
-        	if (i%cols==0) $write("\n");
-        end
+
         // Display raw results
         $display("\n\n--- Output Matrix ---\n");
         for (integer i=1; i<LENGTH+1;i++) begin
-        	$write(" %0h ", raw_result[2][i-1]);
+        	$write(" %0h ", result[2][i-1]);
         	if (i%cols==0) $write("\n");
         end
         
-        fd = $fopen({weight_path, "/npu_output.hex"}, "w");
+        fd = $fopen({weight_path, "/sim_output.hex"}, "w");
 				for (integer i = 0; i < LENGTH; i++) begin
-					$fdisplay(fd, "%01h", raw_result[2][i]);
+					$fdisplay(fd, "%0h", result[2][i]);
 				end
 				$fclose(fd);        
         

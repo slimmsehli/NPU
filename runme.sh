@@ -17,5 +17,5 @@ echo "\n\n\n Simulation ... \n\n\n"
 ./simdir/simv +WEIGHT_PATH=$PWD/memories |& tee ./simdir/simulation.log 
 
 echo "\n\n\n Openining Waves ... \n\n\n"
-gtkwave waves.vcd
+#gtkwave waves.vcd &
 

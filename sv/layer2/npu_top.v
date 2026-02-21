@@ -134,7 +134,7 @@ module npu_top
     			4 : begin // wait state for layer deactivation
     				start_layer[current_layer] = 0;
     				vpu_enable[current_layer] = 0;
-    				if (current_layer==LAYERS)
+    				if (current_layer==LAYERS-1)
     					status = 5; // if we are at the last layer we go out
     				else begin
     					current_layer = current_layer+1; 

@@ -30,9 +30,9 @@ def load_hex_matrix(path, rows, cols):
 
 def main():
 	parser = argparse.ArgumentParser(description="compare matrices")
-	parser.add_argument("--n", type=int, required=True, default=3, help="")
-	parser.add_argument("--ref", type=str, required=True, default="../memories/ref_output.hex", help="")
-	parser.add_argument("--sim", type=str, required=True, default="../memories/sim_output.hex", help="")
+	parser.add_argument("--n", type=int, required=False, default=3, help="")
+	parser.add_argument("--ref", type=str, required=False, default="../memories/ref_output.hex", help="")
+	parser.add_argument("--sim", type=str, required=False, default="../memories/sim_output.hex", help="")
 	args = parser.parse_args()
 	print(f"\n [INFO] - Reference Matrix {args.ref} :")
 	ref = load_hex_matrix(args.ref, args.n, args.n)
