@@ -2,14 +2,14 @@
 
 TOP_DIR=${PWD}
 
-set size = 5
+export size=3
 
 # generate new matrices
 	rm -rf ./memories/*.hex
 	python ./model/genmat.py --n ${size} --seed 1 --out $TOP_DIR/memories/inputs.hex --min 0 --max 20
-	python ./model/genmat.py --n ${size} --seed 1 --out $TOP_DIR/memories/w0.hex --min 0 --max 2
-	python ./model/genmat.py --n ${size} --seed 1 --out $TOP_DIR/memories/w1.hex --min 0 --max 2
-	python ./model/genmat.py --n ${size} --seed 1 --out $TOP_DIR/memories/w2.hex --min 0 --max 2
+	python ./model/genmat.py --n ${size} --seed 2 --out $TOP_DIR/memories/w0.hex --min 0 --max 2
+	python ./model/genmat.py --n ${size} --seed 3 --out $TOP_DIR/memories/w1.hex --min 0 --max 2
+	python ./model/genmat.py --n ${size} --seed 4 --out $TOP_DIR/memories/w2.hex --min 0 --max 2
 
 #echo "\n\n\n Running Python Model, cmd : python ./model/ref_model.py ... \n\n\n"
 	rm -rf ./memories/ref_output.hex ./memories/sim_output.hex
