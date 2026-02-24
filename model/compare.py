@@ -34,13 +34,24 @@ def main():
 	parser.add_argument("--ref", type=str, required=False, default="../memories/ref_output.hex", help="")
 	parser.add_argument("--sim", type=str, required=False, default="../memories/sim_output.hex", help="")
 	args = parser.parse_args()
+	n = args.n
 	print(f"\n [INFO] - Reference Matrix {args.ref} :")
 	ref = load_hex_matrix(args.ref, args.n, args.n)
 	print(ref)
 	print(f"\n [INFO] - Simulation Matrix {args.sim} :")
 	sim = load_hex_matrix(args.sim, args.n, args.n)
 	print(sim)
+	errors = 0
+	for i in range (n):
+		for j in range (n):
+			if (ref[i][j] != sim[i][j] ):
+				print(f"\n [ERROR] - Matrix Mismatch - index [{i}][{j}] - ref={ref[i][j]} , sim={sim[i][j]}")
+				errors = errors + 1
 	
+	if(errors > 0):
+		print(f"\n [ERROR] - COMPARE FAILED : found {errors} Matrix Mismatch ")
+	else:
+		print(f"\n [INFO] - COMPARE PASSED : found 0 Matrix Mismatch ")
 
 if __name__ == "__main__":
     main()
